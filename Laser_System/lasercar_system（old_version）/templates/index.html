@@ -1,0 +1,2805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Weed Control System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            background-color: #0a192f;
+            color: #fff;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* Top navigation bar */
+        .top-nav {
+            background-color: rgba(13, 25, 48, 0.95);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #64ffda;
+            box-shadow: 0 2px 10px rgba(100, 255, 218, 0.2);
+            z-index: 1000;
+        }
+
+        .top-nav h1 {
+            color: #64ffda;
+            margin: 0;
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: 1px solid #00a8cc;
+            color: #00a8cc;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: #00a8cc;
+            color: #16213e;
+        }
+
+        .nav-btn.active {
+            background: #00a8cc;
+            color: #16213e;
+        }
+
+        .nav-btn.danger {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .nav-btn.danger:hover {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .nav-btn.success {
+            border-color: #44ff44;
+            color: #44ff44;
+        }
+
+        .nav-btn.success:hover {
+            background: #44ff44;
+            color: #000;
+        }
+
+        /* Main content area */
+        .main-content {
+            display: flex;
+            height: calc(100vh - 70px);
+            padding: 10px;
+            gap: 10px;
+        }
+
+        /* Left panel - Navigation and Controls */
+        .left-panel {
+            width: 300px;
+            background: rgba(13, 25, 48, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid #64ffda;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        /* Compass */
+        .compass-section {
+            background: rgba(16, 32, 58, 0.9);
+            border-radius: 10px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .compass-container {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 3px solid #64ffda;
+            background: radial-gradient(circle at center, #1a365d 0%, #0d1930 100%);
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.3);
+            position: relative;
+            margin: 20px auto;
+        }
+
+        #compass-container {
+            width: 200px;
+            height: 200px;
+            margin: 20px auto;
+            position: relative;
+            background: radial-gradient(circle, #1a365d 0%, #0d1930 100%);
+            border-radius: 50%;
+            border: 2px solid #64ffda;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.3);
+        }
+
+        #imu-arrow {
+            position: absolute;
+            width: 8px;
+            height: 90px;
+            background: linear-gradient(to bottom, #64ffda, transparent);
+            transform-origin: bottom center;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            clip-path: polygon(50% 0%, 100% 100%, 50% 85%, 0% 100%);
+            box-shadow: 0 0 10px #64ffda;
+        }
+
+        .compass-marks {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .compass-mark {
+            position: absolute;
+            width: 2px;
+            height: 15px;
+            background: rgba(100, 255, 218, 0.5);
+            left: 50%;
+            transform-origin: bottom center;
+        }
+
+        .compass-mark.major {
+            height: 20px;
+            width: 3px;
+            background: rgba(100, 255, 218, 0.8);
+        }
+
+        .compass-label {
+            position: absolute;
+            font-size: 16px;
+            color: #64ffda;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+        }
+
+        .compass-label.north { top: 10px; left: 50%; transform: translateX(-50%); }
+        .compass-label.east { right: 10px; top: 50%; transform: translateY(-50%); }
+        .compass-label.south { bottom: 10px; left: 50%; transform: translateX(-50%); }
+        .compass-label.west { left: 10px; top: 50%; transform: translateY(-50%); }
+
+        .compass-degree {
+            position: absolute;
+            top: 50%;
+            right: -60px;
+            transform: translateY(-50%);
+            color: #64ffda;
+            font-size: 18px;
+            font-weight: bold;
+            background: rgba(13, 25, 48, 0.8);
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(100, 255, 218, 0.3);
+        }
+
+        /* Control buttons */
+        .control-group {
+            background: rgba(16, 32, 58, 0.9);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid rgba(100, 255, 218, 0.3);
+        }
+
+        .control-btn {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background-color: #1a365d;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .control-btn:hover {
+            background-color: #2a4f7d;
+        }
+
+        .control-btn.active {
+            background-color: #64ffda;
+            color: #1a365d;
+        }
+
+        .control-btn.danger {
+            background-color: #9b2c2c;
+        }
+
+        .control-btn.danger:hover {
+            background-color: #c53030;
+        }
+
+        .control-btn.success {
+            background-color: #2c7a7b;
+        }
+
+        .control-btn.success:hover {
+            background-color: #319795;
+        }
+
+        /* Status indicators */
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            background: rgba(16, 32, 58, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(100, 255, 218, 0.3);
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 15px;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .status-dot.connected {
+            background: #64ffda;
+            color: #64ffda;
+        }
+
+        .status-dot.disconnected {
+            background: #ff4d4d;
+            color: #ff4d4d;
+        }
+
+        /* Center panel - Map and Video */
+        .center-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #map {
+            flex: 3;
+            border-radius: 15px;
+            border: 1px solid #64ffda;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.2);
+            overflow: hidden;
+        }
+
+        .video-container {
+            flex: 2;
+            border-radius: 15px;
+            border: 1px solid #64ffda;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.2);
+            overflow: hidden;
+            position: relative;
+            background: #000;
+        }
+
+        #video-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(13, 25, 48, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #64ffda;
+        }
+
+        .weed-marker {
+            position: absolute;
+            border: 2px solid #ff0000;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Right panel - Laser Control and Data */
+        .right-panel {
+            width: 350px;
+            background: rgba(13, 25, 48, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid #64ffda;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        /* Advanced Weed Targeting Panel */
+        .weed-targeting-panel {
+            background: rgba(16, 32, 58, 0.9);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid rgba(100, 255, 218, 0.3);
+        }
+
+        .weed-targeting-panel h3 {
+            color: #64ffda;
+            margin-top: 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+
+        .targeting-status {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .targeting-status.inactive {
+            background-color: #666;
+            color: #ccc;
+        }
+
+        .targeting-status.observing {
+            background-color: #3366cc;
+            color: white;
+        }
+
+        .targeting-status.predicting {
+            background-color: #ff9900;
+            color: white;
+        }
+
+        .targeting-status.executing {
+            background-color: #cc3333;
+            color: white;
+        }
+
+        .targeting-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        /* Laser control panel */
+        .laser-control {
+            background: rgba(16, 32, 58, 0.9);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid rgba(100, 255, 218, 0.3);
+        }
+
+        .laser-control h3 {
+            color: #64ffda;
+            margin-top: 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+
+        .laser-status {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .laser-status.off {
+            background-color: black;
+            color: #FF3030;
+        }
+
+        .laser-status.on {
+            background-color: #FF3030;
+            color: white;
+        }
+
+        .laser-status.warning {
+            background-color: #FFA500;
+            color: black;
+        }
+
+        .slider-container {
+            margin-bottom: 15px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .slider-value {
+            color: #64ffda;
+            font-weight: bold;
+        }
+
+        .slider {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 8px;
+            border-radius: 4px;
+            background: #1a365d;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #64ffda;
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #64ffda;
+            cursor: pointer;
+        }
+
+        .laser-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .laser-btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #1a365d;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            flex: 1 0 45%;
+            text-align: center;
+        }
+
+        .laser-btn:hover {
+            background-color: #2a4f7d;
+        }
+
+        .laser-btn.danger {
+            background-color: #9b2c2c;
+        }
+
+        .laser-btn.danger:hover {
+            background-color: #c53030;
+        }
+
+        .laser-btn.success {
+            background-color: #2c7a7b;
+        }
+
+        .laser-btn.success:hover {
+            background-color: #319795;
+        }
+
+        .laser-mode-toggle {
+            display: flex;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .mode-btn {
+            padding: 8px 15px;
+            border: none;
+            background-color: #1a365d;
+            color: white;
+            cursor: pointer;
+        }
+
+        .mode-btn:first-child {
+            border-radius: 5px 0 0 5px;
+        }
+
+        .mode-btn:last-child {
+            border-radius: 0 5px 5px 0;
+        }
+
+        .mode-btn.active {
+            background-color: #64ffda;
+            color: #1a365d;
+        }
+
+        /* Data panel */
+        #data-panel {
+            background: rgba(16, 32, 58, 0.9);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid rgba(100, 255, 218, 0.3);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .data-line {
+            border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+            padding: 8px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        /* Timer display */
+        .timer-display {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #64ffda;
+            background: rgba(13, 25, 48, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        /* Animation */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 5px rgba(100, 255, 218, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(100, 255, 218, 0.4); }
+            100% { box-shadow: 0 0 5px rgba(100, 255, 218, 0.2); }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(13, 25, 48, 0.9);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #64ffda;
+            border-radius: 4px;
+        }
+
+        /* Local camera styles */
+        .local-camera-active .video-container {
+            position: relative;
+        }
+
+        .local-camera-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 5;
+            display: none;
+            background: #000;
+        }
+
+        .local-camera-active .local-camera-container {
+            display: block;
+        }
+
+        /* Context menu */
+        .context-menu {
+            position: absolute;
+            background: rgba(13, 25, 48, 0.95);
+            border: 1px solid #64ffda;
+            border-radius: 5px;
+            padding: 5px 0;
+            box-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
+            z-index: 1000;
+            display: none;
+        }
+
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            color: white;
+        }
+
+        .context-menu-item:hover {
+            background: rgba(100, 255, 218, 0.2);
+        }
+
+        /* Weed count display */
+        .weed-count-display {
+            background: rgba(16, 32, 58, 0.9);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid rgba(100, 255, 218, 0.3);
+            text-align: center;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 1200px) {
+            .main-content {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .left-panel, .right-panel {
+                width: auto;
+                max-height: 400px;
+            }
+
+            .center-panel {
+                flex: none;
+                height: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <h1>Advanced Weed Control System</h1>
+        <div class="nav-buttons">
+            <button id="connect-robot-btn" class="nav-btn">Connect Robot</button>
+            <button id="weed-targeting-btn" class="nav-btn success">Auto Weed Targeting</button>
+            <button id="collect-dataset-btn" class="nav-btn">Collect Dataset</button>
+            <button id="connect-laser-btn" class="nav-btn">Connect Laser</button>
+            <button id="local-camera-btn" class="nav-btn">Local Camera</button>
+            <button id="data-btn" class="nav-btn">Data</button>
+            <button id="point-btn" class="nav-btn">Route</button>
+            <button id="pid-btn" class="nav-btn">PID</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- Left Panel - Navigation and Controls -->
+        <div class="left-panel">
+            <!-- Connection Status -->
+            <div class="status-indicator">
+                <div id="robot-status" class="status-dot disconnected"></div>
+                <span>Robot Connection</span>
+            </div>
+
+            <div class="status-indicator">
+                <div id="laser-status" class="status-dot disconnected"></div>
+                <span>Laser System</span>
+            </div>
+
+            <div class="status-indicator">
+                <div id="mqtt-status" class="status-dot disconnected"></div>
+                <span>MQTT Connection</span>
+            </div>
+
+            <div class="status-indicator">
+                <div id="weed-targeting-status" class="status-dot disconnected"></div>
+                <span>Weed Targeting System</span>
+            </div>
+
+            <!-- Compass -->
+            <div class="compass-section">
+                <h3>Navigation Compass</h3>
+                <div class="compass-container">
+                    <div id="imu-arrow"></div>
+                    <div class="compass-degree">0°</div>
+                    <div class="compass-label north">N</div>
+                    <div class="compass-label east">E</div>
+                    <div class="compass-label south">S</div>
+                    <div class="compass-label west">W</div>
+                </div>
+            </div>
+
+            <!-- Navigation Controls -->
+            <div class="control-group">
+                <h3>Movement Controls</h3>
+                <div style="display: flex; justify-content: center; margin: 10px 0;">
+                    <button id="forward-btn" class="control-btn">↑</button>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin: 10px 0;">
+                    <button id="left-btn" class="control-btn">←</button>
+                    <button id="stop-btn" class="control-btn">■</button>
+                    <button id="right-btn" class="control-btn">→</button>
+                </div>
+                <div style="display: flex; justify-content: center; margin: 10px 0;">
+                    <button id="backward-btn" class="control-btn">↓</button>
+                </div>
+                <p style="text-align: center; margin-top: 10px; font-size: 12px;">
+                    Keyboard: W,A,S,D | Space = Stop
+                </p>
+            </div>
+
+            <!-- Motor Control Section -->
+            <div id="motor-control-section" class="control-group" style="display: none;">
+                <h3>Motor Control System</h3>
+
+                <!-- Connection Status -->
+                <div class="status-indicator">
+                    <div id="motor-connection-status" class="status-dot disconnected"></div>
+                    <span>Motor Connection</span>
+                </div>
+
+                <!-- Device Selection -->
+                <div id="device-selection" class="control-group" style="display: none;">
+                    <h4>Device Selection</h4>
+                    <div id="device-buttons" style="display: flex; gap: 10px; justify-content: center;">
+                        <!-- Device buttons will be added dynamically -->
+                    </div>
+                    <p style="text-align: center; font-size: 12px; margin-top: 5px;">
+                        Keyboard: F1/F2 to switch devices
+                    </p>
+                </div>
+
+                <!-- Current Device Info -->
+                <div id="current-device-info" class="control-group" style="display: none;">
+                    <h4>Current Device: <span id="current-device-name">Device 1</span></h4>
+                    <div style="display: flex; justify-content: space-between; font-family: monospace; font-size: 12px;">
+                        <span>X: <span id="current-x-pos">2048</span></span>
+                        <span>Y: <span id="current-y-pos">2048</span></span>
+                    </div>
+                </div>
+
+                <!-- Motor Movement Controls -->
+                <div id="motor-movement" class="control-group" style="display: none;">
+                    <h4>Motor Movement</h4>
+                    <div style="display: flex; justify-content: center; margin: 10px 0;">
+                        <button id="motor-up" class="control-btn">↑</button>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 10px 0;">
+                        <button id="motor-left" class="control-btn">←</button>
+                        <button id="motor-center" class="control-btn">●</button>
+                        <button id="motor-right" class="control-btn">→</button>
+                    </div>
+                    <div style="display: flex; justify-content: center; margin: 10px 0;">
+                        <button id="motor-down" class="control-btn">↓</button>
+                    </div>
+                    <p style="text-align: center; margin-top: 10px; font-size: 12px;">
+                        Keyboard: Arrow Keys | C = Center
+                    </p>
+                </div>
+
+                <!-- Step Size Control -->
+                <div id="step-size-control" class="control-group" style="display: none;">
+                    <h4>Step Size</h4>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>Movement Step</span>
+                            <span id="step-size-value" class="slider-value">50</span>
+                        </div>
+                        <input type="range" id="step-size-slider" class="slider" min="1" max="500" value="50">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lock Heading Button -->
+            <button id="lock-btn" class="control-btn">Lock Heading: OFF</button>
+        </div>
+
+        <!-- Center Panel - Map and Video Feed -->
+        <div class="center-panel">
+            <!-- Map View -->
+            <div id="map"></div>
+
+            <!-- Video Feed -->
+            <div class="video-container">
+                <img id="video-feed" src="/video_feed" alt="Camera Feed">
+                <div class="video-overlay">Live Camera Feed</div>
+                <!-- Local camera container -->
+                <div class="local-camera-container">
+                    <video id="local-camera-feed" autoplay playsinline style="width: 100%; height: 100%; object-fit: contain;"></video>
+                </div>
+                <!-- Weed markers will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Right Panel - Weed Targeting, Laser Control and Data -->
+        <div class="right-panel">
+            <!-- Advanced Weed Targeting Panel -->
+            <div id="weed-targeting-panel" class="weed-targeting-panel" style="display: none;">
+                <h3>Advanced Weed Targeting System</h3>
+
+                <div id="targeting-status-display" class="targeting-status inactive">SYSTEM INACTIVE</div>
+
+                <!-- System Control Buttons -->
+                <div class="targeting-buttons">
+                    <button id="start-targeting-btn" class="laser-btn success">Start System</button>
+                    <button id="stop-targeting-btn" class="laser-btn danger">Stop System</button>
+                    <button id="toggle-targeting-btn" class="laser-btn">Toggle Targeting</button>
+                    <button id="stop-execution-btn" class="laser-btn danger">Stop Execution</button>
+                </div>
+
+                <!-- Weed Count Display -->
+                <div class="weed-count-display">
+                    <div><strong>Weeds Detected:</strong></div>
+                    <div>In Laser Region: <span id="weeds-in-laser">0M, 0S</span></div>
+                    <div>Outside Region: <span id="weeds-out-laser">0M, 0S</span></div>
+                    <div>Current Target: <span id="current-target-id">None</span></div>
+                    <div>Executing: <span id="executing-weed-id">None</span></div>
+                </div>
+
+                <!-- Timing Parameters -->
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Observation Time (s)</span>
+                        <span id="observation-time-value" class="slider-value">1.0</span>
+                    </div>
+                    <input type="range" id="observation-time-slider" class="slider" min="0.3" max="3.0" step="0.1" value="1.0">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Prediction Duration (s)</span>
+                        <span id="prediction-duration-value" class="slider-value">8.0</span>
+                    </div>
+                    <input type="range" id="prediction-duration-slider" class="slider" min="2.0" max="20.0" step="0.5" value="8.0">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Prediction Delay (s)</span>
+                        <span id="prediction-delay-value" class="slider-value">1.5</span>
+                    </div>
+                    <input type="range" id="prediction-delay-slider" class="slider" min="0.0" max="5.0" step="0.1" value="1.5">
+                </div>
+
+                <!-- YOLO and Speed Parameters -->
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>YOLO Delay Compensation (s)</span>
+                        <span id="yolo-delay-value" class="slider-value">1.0</span>
+                    </div>
+                    <input type="range" id="yolo-delay-slider" class="slider" min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Speed Scaling Factor</span>
+                        <span id="speed-scaling-value" class="slider-value">0.85</span>
+                    </div>
+                    <input type="range" id="speed-scaling-slider" class="slider" min="0.3" max="1.5" step="0.05" value="0.85">
+                </div>
+
+                <!-- Noise Filtering Parameters -->
+                <h4>Noise Filtering</h4>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Filter Strength</span>
+                        <span id="noise-filter-strength-value" class="slider-value">0.3</span>
+                    </div>
+                    <input type="range" id="noise-filter-strength-slider" class="slider" min="0.0" max="1.0" step="0.05" value="0.3">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Smoothing Window</span>
+                        <span id="noise-smoothing-window-value" class="slider-value">5</span>
+                    </div>
+                    <input type="range" id="noise-smoothing-window-slider" class="slider" min="1" max="10" step="1" value="5">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Movement Threshold</span>
+                        <span id="noise-movement-threshold-value" class="slider-value">3.0</span>
+                    </div>
+                    <input type="range" id="noise-movement-threshold-slider" class="slider" min="1.0" max="20.0" step="0.5" value="3.0">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Outlier Threshold</span>
+                        <span id="noise-outlier-threshold-value" class="slider-value">50.0</span>
+                    </div>
+                    <input type="range" id="noise-outlier-threshold-slider" class="slider" min="10.0" max="200.0" step="5.0" value="50.0">
+                </div>
+
+                <!-- Execution Parameters -->
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Min Execution Confidence</span>
+                        <span id="min-confidence-value" class="slider-value">0.25</span>
+                    </div>
+                    <input type="range" id="min-confidence-slider" class="slider" min="0.1" max="1.0" step="0.05" value="0.25">
+                </div>
+
+                <!-- Pattern Control -->
+                <div class="targeting-buttons">
+                    <button id="pattern-toggle-btn" class="laser-btn">Patterns: ON</button>
+                </div>
+            </div>
+
+            <!-- Laser Control Panel -->
+            <div class="laser-control">
+                <h3>Laser Control System</h3>
+
+                <div id="laser-status-display" class="laser-status off">LASER OFF</div>
+
+                <!-- Mode Toggle -->
+                <div class="laser-mode-toggle">
+                    <button id="manual-mode-btn" class="mode-btn active">MANUAL</button>
+                    <button id="auto-mode-btn" class="mode-btn">AUTO</button>
+                </div>
+
+                <!-- Timer Display -->
+                <div id="timer-display" class="timer-display">00:00.00</div>
+
+                <!-- Sliders -->
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Power Level</span>
+                        <span id="power-value" class="slider-value">5</span>
+                    </div>
+                    <input type="range" id="power-slider" class="slider" min="1" max="255" value="5">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Duration (sec)</span>
+                        <span id="duration-value" class="slider-value">5</span>
+                    </div>
+                    <input type="range" id="duration-slider" class="slider" min="1" max="60" value="5">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Safety Delay (sec)</span>
+                        <span id="delay-value" class="slider-value">2</span>
+                    </div>
+                    <input type="range" id="delay-slider" class="slider" min="1" max="10" value="2">
+                </div>
+
+                <div id="aim-power-container" class="slider-container" style="display: none;">
+                    <div class="slider-label">
+                        <span>Aim Power</span>
+                        <span id="aim-power-value" class="slider-value">2</span>
+                    </div>
+                    <input type="range" id="aim-power-slider" class="slider" min="1" max="20" value="2">
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="laser-buttons">
+                    <button id="laser-toggle-btn" class="laser-btn danger">Toggle Laser</button>
+                    <button id="high-power-btn" class="laser-btn">Confirm High Power</button>
+                    <button id="capture-btn" class="laser-btn">Capture Image</button>
+                    <button id="experiment-btn" class="laser-btn success">Run Experiment</button>
+                </div>
+            </div>
+
+            <!-- Data Display -->
+            <div id="data-panel">
+                <h3>System Data</h3>
+                <div id="data-content"></div>
+            </div>
+
+            <!-- PID Control Panel (initially hidden) -->
+            <div id="pid-panel" style="display: none;" class="control-group">
+                <h3>PID Control</h3>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Kp:</span>
+                        <span id="kp-value" class="slider-value">1.0</span>
+                    </div>
+                    <input type="range" id="kp-slider" class="slider" min="0" max="10" step="0.1" value="1.0">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Ki:</span>
+                        <span id="ki-value" class="slider-value">0.0</span>
+                    </div>
+                    <input type="range" id="ki-slider" class="slider" min="0" max="2" step="0.1" value="0.0">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Kd:</span>
+                        <span id="kd-value" class="slider-value">0.0</span>
+                    </div>
+                    <input type="range" id="kd-slider" class="slider" min="0" max="2" step="0.1" value="0.0">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Speed:</span>
+                        <span id="speed-value" class="slider-value">150</span>
+                    </div>
+                    <input type="range" id="speed-slider" class="slider" min="50" max="250" step="10" value="150">
+                </div>
+
+                <button id="pid-update-btn" class="control-btn">Update PID Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu for Map -->
+    <div id="context-menu" class="context-menu">
+        <div class="context-menu-item" id="target-weed">Target Weed</div>
+        <div class="context-menu-item" id="add-waypoint">Add Waypoint</div>
+        <div class="context-menu-item" id="clear-waypoints">Clear All Waypoints</div>
+    </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+<script src="/static/gamepad.js"></script>
+<script>
+// Global variables
+let map = null, gpsMarker = null, gpsCircle = null, fusedMarker = null;
+let weedMarkers = [];
+let routePoints = [];
+let routeLines = [];
+let lastWeedDetections = [];
+let lastMousePos = { lat: 0, lng: 0 };
+
+// Configuration and state
+const CONFIG = {
+    updateInterval: 500,        // ms
+    maxDataEntries: 20,         // Max data lines to show
+    routeMode: false,           // Whether route mode is active
+    lockHeading: false,         // Whether map heading is locked
+    headingLockAngle: 0,        // Current lock angle
+    lockHeadingThreshold: 5,    // How much heading change before rotating map
+    lastLockHeading: 0          // Last locked heading for comparison
+};
+
+// Laser control state
+const LASER = {
+    connected: false,
+    status: 'OFF',
+    power: 5,
+    aimPower: 2,
+    duration: 5,
+    safetyDelay: 2,
+    mode: 'MANUAL',
+    timerActive: false,
+    timerStartTime: 0,
+    timerInterval: null,
+    highPowerThreshold: 50      // Power level that needs confirmation
+};
+
+// Weed targeting system state
+const WEED_TARGETING = {
+    systemRunning: false,
+    targetingEnabled: false,
+    currentPhase: 'INACTIVE',
+    currentTarget: null,
+    executingWeed: null,
+    parameters: {
+        observationTime: 1.0,
+        predictionDuration: 8.0,
+        predictionDelay: 1.5,
+        yoloDelay: 1.0,
+        speedScaling: 0.85,
+        noiseFilterStrength: 0.3,
+        noiseSmoothingWindow: 5,
+        noiseMovementThreshold: 3.0,
+        noiseOutlierThreshold: 50.0,
+        minConfidence: 0.25,
+        patternEnabled: true
+    },
+    weedCounts: {
+        inLaser: { moving: 0, static: 0 },
+        outLaser: { moving: 0, static: 0 }
+    }
+};
+
+// Motor control state
+const MOTOR_CONTROL = {
+    connected: false,
+    deviceCount: 0,
+    currentDevice: 0,
+    stepSize: 50,
+    devices: [],
+    lastUpdate: 0
+};
+
+// Current data from server
+window.currentData = {
+    imu: { heading: 0, accX: 0, accY: 0 },
+    gps: { lat: 35.7932608, lon: -86.3528134 },
+    fused: { heading: 0, lat: 35.7932608, lon: -86.3528134 },
+    weed_detections: []
+};
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map
+    initMap();
+
+    // Set up UI event listeners
+    setupListeners();
+
+    // Start data polling
+    startDataPolling();
+
+    // Check connections on startup
+    checkConnections();
+
+    // Initialize motor control after a short delay
+    setTimeout(initMotorControl, 500);
+});
+
+function initMap() {
+    // Create map centered at default GPS coordinates
+    map = L.map('map').setView([35.7932608, -86.3528134], 18);
+
+    // Add OpenStreetMap tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Create markers
+    gpsMarker = L.circleMarker([35.7932608, -86.3528134], {
+        color: '#007BFF',
+        fillColor: '#007BFF',
+        fillOpacity: 0.5,
+        radius: 8
+    }).addTo(map);
+
+    gpsCircle = L.circle([35.7932608, -86.3528134], {
+        color: '#007BFF',
+        fillColor: '#007BFF',
+        fillOpacity: 0.2,
+        radius: 20
+    }).addTo(map);
+
+    // Create a custom icon for the robot/vehicle
+    const fusedIcon = L.divIcon({
+        className: 'fused-icon',
+        html: `<div id="fused-robot-icon" style="
+            width: 60px;
+            height: 60px;
+            background-image: url('/static/robot.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            transform-origin: center;
+        "></div>`,
+        iconSize: [60, 60],
+        iconAnchor: [30, 30]
+    });
+
+    fusedMarker = L.marker([35.7932608, -86.3528134], {
+        icon: fusedIcon
+    }).addTo(map);
+
+    // Add map event listeners
+    map.on('click', onMapClick);
+    map.on('contextmenu', onMapContextMenu);
+    map.on('mousemove', function(e) {
+        lastMousePos = e.latlng;
+    });
+
+    // Close context menu on map movement
+    map.on('movestart', function() {
+        document.getElementById('context-menu').style.display = 'none';
+    });
+}
+
+// Motor Control Functions
+function initMotorControl() {
+    // Start motor status polling
+    setInterval(updateMotorStatus, 1000);
+
+    // Initial status check
+    updateMotorStatus();
+}
+
+function setupListeners() {
+    // Top navigation buttons
+    document.getElementById('connect-robot-btn').addEventListener('click', connectRobot);
+    document.getElementById('weed-targeting-btn').addEventListener('click', toggleWeedTargetingPanel);
+    document.getElementById('collect-dataset-btn').addEventListener('click', openDatasetCollectionMode);
+    document.getElementById('connect-laser-btn').addEventListener('click', connectLaser);
+    document.getElementById('local-camera-btn').addEventListener('click', openLocalCamera);
+    document.getElementById('data-btn').addEventListener('click', toggleDataPanel);
+    document.getElementById('point-btn').addEventListener('click', toggleRouteMode);
+    document.getElementById('pid-btn').addEventListener('click', togglePIDPanel);
+
+    // Movement control buttons
+    document.getElementById('forward-btn').addEventListener('mousedown', () => sendRobotCommand('w'));
+    document.getElementById('backward-btn').addEventListener('mousedown', () => sendRobotCommand('s'));
+    document.getElementById('left-btn').addEventListener('mousedown', () => sendRobotCommand('a'));
+    document.getElementById('right-btn').addEventListener('mousedown', () => sendRobotCommand('d'));
+    document.getElementById('stop-btn').addEventListener('click', () => sendRobotCommand('stop'));
+
+    // Release movement buttons = stop
+    const movementButtons = ['forward-btn', 'backward-btn', 'left-btn', 'right-btn'];
+    movementButtons.forEach(id => {
+        document.getElementById(id).addEventListener('mouseup', () => sendRobotCommand('stop'));
+        document.getElementById(id).addEventListener('mouseleave', () => sendRobotCommand('stop'));
+    });
+
+    // Lock heading button
+    document.getElementById('lock-btn').addEventListener('click', toggleHeadingLock);
+
+    // Weed targeting controls
+    document.getElementById('start-targeting-btn').addEventListener('click', startWeedTargetingSystem);
+    document.getElementById('stop-targeting-btn').addEventListener('click', stopWeedTargetingSystem);
+    document.getElementById('toggle-targeting-btn').addEventListener('click', toggleWeedTargeting);
+    document.getElementById('stop-execution-btn').addEventListener('click', stopWeedTargetingExecution);
+    document.getElementById('pattern-toggle-btn').addEventListener('click', toggleWeedTargetingPattern);
+
+    // Weed targeting parameter sliders
+    setupWeedTargetingSliders();
+
+    // Motor control event listeners
+    setupMotorEventListeners();
+
+    // Laser control
+    document.getElementById('laser-toggle-btn').addEventListener('click', toggleLaser);
+    document.getElementById('high-power-btn').addEventListener('click', confirmHighPower);
+    document.getElementById('capture-btn').addEventListener('click', captureImage);
+    document.getElementById('experiment-btn').addEventListener('click', runExperiment);
+    document.getElementById('manual-mode-btn').addEventListener('click', () => setLaserMode('MANUAL'));
+    document.getElementById('auto-mode-btn').addEventListener('click', () => setLaserMode('AUTO'));
+
+    // Laser control sliders
+    document.getElementById('power-slider').addEventListener('input', updatePowerValue);
+    document.getElementById('duration-slider').addEventListener('input', updateDurationValue);
+    document.getElementById('delay-slider').addEventListener('input', updateDelayValue);
+    document.getElementById('aim-power-slider').addEventListener('input', updateAimPowerValue);
+
+    // PID control
+    document.getElementById('pid-update-btn').addEventListener('click', updatePIDSettings);
+
+    // Update PID slider values
+    document.getElementById('kp-slider').addEventListener('input', function() {
+        document.getElementById('kp-value').textContent = this.value;
+    });
+
+    document.getElementById('ki-slider').addEventListener('input', function() {
+        document.getElementById('ki-value').textContent = this.value;
+    });
+
+    document.getElementById('kd-slider').addEventListener('input', function() {
+        document.getElementById('kd-value').textContent = this.value;
+    });
+
+    document.getElementById('speed-slider').addEventListener('input', function() {
+        document.getElementById('speed-value').textContent = this.value;
+    });
+
+    // Context menu items
+    document.getElementById('target-weed').addEventListener('click', targetWeedAtPosition);
+    document.getElementById('add-waypoint').addEventListener('click', addWaypointAtPosition);
+    document.getElementById('clear-waypoints').addEventListener('click', clearAllWaypoints);
+
+    // Keyboard controls - Enhanced to handle both robot and motor control
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    // Close context menu when clicking elsewhere
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#context-menu')) {
+            document.getElementById('context-menu').style.display = 'none';
+        }
+    });
+}
+
+function setupWeedTargetingSliders() {
+    // Observation time
+    document.getElementById('observation-time-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('observation-time-value').textContent = value.toFixed(1);
+        WEED_TARGETING.parameters.observationTime = value;
+        updateWeedTargetingParameters();
+    });
+
+    // Prediction duration
+    document.getElementById('prediction-duration-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('prediction-duration-value').textContent = value.toFixed(1);
+        WEED_TARGETING.parameters.predictionDuration = value;
+        updateWeedTargetingParameters();
+    });
+
+    // Prediction delay
+    document.getElementById('prediction-delay-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('prediction-delay-value').textContent = value.toFixed(1);
+        WEED_TARGETING.parameters.predictionDelay = value;
+        updateWeedTargetingParameters();
+    });
+
+    // YOLO delay
+    document.getElementById('yolo-delay-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('yolo-delay-value').textContent = value.toFixed(1);
+        WEED_TARGETING.parameters.yoloDelay = value;
+        updateWeedTargetingParameters();
+    });
+
+    // Speed scaling
+    document.getElementById('speed-scaling-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('speed-scaling-value').textContent = value.toFixed(2);
+        WEED_TARGETING.parameters.speedScaling = value;
+        updateWeedTargetingParameters();
+    });
+
+    // Noise filter strength
+    document.getElementById('noise-filter-strength-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('noise-filter-strength-value').textContent = value.toFixed(2);
+        WEED_TARGETING.parameters.noiseFilterStrength = value;
+        updateWeedTargetingParameters();
+    });
+
+    // Noise smoothing window
+    document.getElementById('noise-smoothing-window-slider').addEventListener('input', function() {
+        const value = parseInt(this.value);
+        document.getElementById('noise-smoothing-window-value').textContent = value;
+        WEED_TARGETING.parameters.noiseSmoothingWindow = value;
+        updateWeedTargetingParameters();
+    });
+
+    // Noise movement threshold
+    document.getElementById('noise-movement-threshold-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('noise-movement-threshold-value').textContent = value.toFixed(1);
+        WEED_TARGETING.parameters.noiseMovementThreshold = value;
+        updateWeedTargetingParameters();
+    });
+
+    // Noise outlier threshold
+    document.getElementById('noise-outlier-threshold-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('noise-outlier-threshold-value').textContent = value.toFixed(1);
+        WEED_TARGETING.parameters.noiseOutlierThreshold = value;
+        updateWeedTargetingParameters();
+    });
+
+    // Min confidence
+    document.getElementById('min-confidence-slider').addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        document.getElementById('min-confidence-value').textContent = value.toFixed(2);
+        WEED_TARGETING.parameters.minConfidence = value;
+        updateWeedTargetingParameters();
+    });
+}
+
+function setupMotorEventListeners() {
+    // Motor movement buttons
+    document.getElementById('motor-up').addEventListener('click', () => moveMotor('up'));
+    document.getElementById('motor-down').addEventListener('click', () => moveMotor('down'));
+    document.getElementById('motor-left').addEventListener('click', () => moveMotor('left'));
+    document.getElementById('motor-right').addEventListener('click', () => moveMotor('right'));
+    document.getElementById('motor-center').addEventListener('click', centerMotor);
+
+    // Step size slider
+    document.getElementById('step-size-slider').addEventListener('input', function() {
+        const value = parseInt(this.value);
+        document.getElementById('step-size-value').textContent = value;
+        setStepSize(value);
+    });
+}
+
+function startDataPolling() {
+    // Poll data from server at regular intervals
+    setInterval(fetchData, CONFIG.updateInterval);
+
+    // Check connection status less frequently
+    setInterval(checkConnections, 5000);
+
+    // Poll weed targeting status
+    setInterval(updateWeedTargetingStatus, 1000);
+}
+
+async function fetchData() {
+    try {
+        const response = await fetch('/data');
+        const data = await response.json();
+
+        // Update global data
+        window.currentData = data;
+
+        // Update UI with new data
+        updateMapVisualization(data);
+        updateWeedDetections(data.weed_detections);
+        updateLaserStatus(data.laser);
+
+        // Get raw MQTT data for data panel
+        if (document.getElementById('data-panel').style.display !== 'none') {
+            const mqttResponse = await fetch('/mqtt-data');
+            const mqttData = await mqttResponse.json();
+            updateDataPanel(mqttData);
+        }
+    } catch (err) {
+        console.error('Error fetching data:', err);
+    }
+}
+
+function updateMapVisualization(data) {
+    if (!data.imu || !data.gps) return;
+
+    const lat = data.gps.lat;
+    const lon = data.gps.lon;
+    let heading = data.imu.heading;
+    heading = (heading + 360) % 360;
+
+    let fusedLat = lat, fusedLon = lon;
+    if (data.fused) {
+        fusedLat = data.fused.lat;
+        fusedLon = data.fused.lon;
+    }
+
+    // Apply heading lock if enabled
+    if (CONFIG.lockHeading) {
+        const diff = Math.abs(heading - CONFIG.lastLockHeading);
+        if (diff > CONFIG.lockHeadingThreshold) {
+            document.getElementById('map').style.transform = `rotate(${-heading}deg)`;
+            CONFIG.headingLockAngle = heading;
+            CONFIG.lastLockHeading = heading;
+        }
+    }
+
+    // Update marker positions
+    gpsMarker.setLatLng([lat, lon]);
+    gpsCircle.setLatLng([lat, lon]);
+
+    // Flash the GPS circle for visibility
+    gpsCircle.setStyle({ fillOpacity: 0.5 });
+    setTimeout(() => gpsCircle.setStyle({ fillOpacity: 0.2 }), 200);
+
+    // Update compass arrow
+    const arrow = document.getElementById('imu-arrow');
+    if (arrow) {
+        arrow.style.transform = `translate(-50%, -100%) rotate(${heading}deg)`;
+    }
+
+    // Update compass degree display
+    const degreeDisplay = document.querySelector('.compass-degree');
+    if (degreeDisplay) {
+        degreeDisplay.textContent = `${Math.round(heading)}°`;
+    }
+
+    // Update fused position marker
+    fusedMarker.setLatLng([fusedLat, fusedLon]);
+
+    // Rotate robot icon based on heading
+    const fusedIconElem = document.getElementById('fused-robot-icon');
+    if (fusedIconElem) {
+        fusedIconElem.style.transform = `rotate(${heading}deg)`;
+    }
+}
+
+function updateWeedDetections(detections) {
+    if (!detections || !Array.isArray(detections)) return;
+
+    // Clear existing weed markers from video
+    const videoContainer = document.querySelector('.video-container');
+    document.querySelectorAll('.weed-marker').forEach(marker => marker.remove());
+
+    // Add new weed markers to video
+    const videoWidth = document.getElementById('video-feed').offsetWidth;
+    const videoHeight = document.getElementById('video-feed').offsetHeight;
+
+    detections.forEach(detection => {
+        if (detection.confidence < 0.5) return; // Skip low confidence detections
+
+        const marker = document.createElement('div');
+        marker.className = 'weed-marker';
+
+        // Calculate position (convert normalized coordinates to pixels)
+        const x = detection.x * videoWidth;
+        const y = detection.y * videoHeight;
+
+        // Set size based on detection size
+        const size = Math.max(20, detection.size * 100);
+
+        marker.style.width = `${size}px`;
+        marker.style.height = `${size}px`;
+        marker.style.left = `${x}px`;
+        marker.style.top = `${y}px`;
+
+        // Vary color based on confidence
+        const opacity = 0.3 + (detection.confidence * 0.7);
+        marker.style.borderColor = `rgba(255, 0, 0, ${opacity})`;
+        marker.style.boxShadow = `0 0 10px rgba(255, 0, 0, ${opacity})`;
+
+        // Store detection data for use in context menu
+        marker.dataset.detection = JSON.stringify(detection);
+
+        videoContainer.appendChild(marker);
+    });
+
+    // Store detections for later use
+    lastWeedDetections = detections;
+}
+
+function updateLaserStatus(laserData) {
+    if (!laserData) return;
+
+    // Update laser state
+    LASER.status = laserData.status || LASER.status;
+    LASER.power = laserData.power || LASER.power;
+    LASER.aimPower = laserData.aim_power || LASER.aimPower;
+    LASER.duration = laserData.duration || LASER.duration;
+    LASER.safetyDelay = laserData.safety_delay || LASER.safetyDelay;
+    LASER.mode = laserData.mode || LASER.mode;
+
+    // Update UI elements
+    const statusDisplay = document.getElementById('laser-status-display');
+    if (LASER.status === 'ON') {
+        statusDisplay.textContent = 'LASER ON';
+        statusDisplay.className = 'laser-status on';
+
+        // Start/update timer if in manual mode
+        if (LASER.mode === 'MANUAL' && !LASER.timerActive) {
+            startLaserTimer();
+        }
+    } else {
+        statusDisplay.textContent = 'LASER OFF';
+        statusDisplay.className = 'laser-status off';
+
+        // Stop timer
+        if (LASER.timerActive) {
+            stopLaserTimer();
+        }
+    }
+
+    // Update slider values
+    document.getElementById('power-slider').value = LASER.power;
+    document.getElementById('power-value').textContent = LASER.power;
+
+    document.getElementById('duration-slider').value = LASER.duration;
+    document.getElementById('duration-value').textContent = LASER.duration;
+
+    document.getElementById('delay-slider').value = LASER.safetyDelay;
+    document.getElementById('delay-value').textContent = LASER.safetyDelay;
+
+    document.getElementById('aim-power-slider').value = LASER.aimPower;
+    document.getElementById('aim-power-value').textContent = LASER.aimPower;
+
+    // Update mode buttons
+    if (LASER.mode === 'MANUAL') {
+        document.getElementById('manual-mode-btn').classList.add('active');
+        document.getElementById('auto-mode-btn').classList.remove('active');
+        document.getElementById('aim-power-container').style.display = 'none';
+    } else {
+        document.getElementById('manual-mode-btn').classList.remove('active');
+        document.getElementById('auto-mode-btn').classList.add('active');
+        document.getElementById('aim-power-container').style.display = 'block';
+    }
+
+    // Show high power warning if needed
+    if (LASER.power > LASER.highPowerThreshold) {
+        document.getElementById('power-value').style.color = '#FF3030';
+        document.getElementById('high-power-btn').style.display = 'block';
+    } else {
+        document.getElementById('power-value').style.color = '#64ffda';
+        document.getElementById('high-power-btn').style.display = 'none';
+    }
+
+    // Show experiment button only in AUTO mode
+    document.getElementById('experiment-btn').style.display =
+        LASER.mode === 'AUTO' ? 'block' : 'none';
+}
+
+function updateDataPanel(data) {
+    if (!data || !Array.isArray(data)) return;
+
+    const dataContent = document.getElementById('data-content');
+    dataContent.innerHTML = '';
+
+    // Show only the latest entries (limited by maxDataEntries)
+    const start = Math.max(0, data.length - CONFIG.maxDataEntries);
+    for (let i = start; i < data.length; i++) {
+        const item = data[i];
+        const div = document.createElement('div');
+        div.className = 'data-line';
+
+        // Format data line
+        div.textContent = `GPS: ${item["gps:Lat"] || 0}, ${item["Lon"] || 0} | ` +
+                         `Heading: ${item["Heading"] || 0}° | ` +
+                         `Acc: ${item["accX"] || 0}, ${item["accY"] || 0}`;
+
+        dataContent.appendChild(div);
+    }
+}
+
+async function checkConnections() {
+    try {
+        const response = await fetch('/check-connections');
+        const status = await response.json();
+
+        // Update UI status indicators
+        updateStatusDot('mqtt-status', status.mqtt_connected);
+        updateStatusDot('robot-status', status.robot_connected);
+        updateStatusDot('laser-status', status.laser_connected);
+        updateStatusDot('weed-targeting-status', status.weed_targeting_running);
+
+        // Store laser connection state
+        LASER.connected = status.laser_connected;
+
+        // Update weed targeting system status
+        WEED_TARGETING.systemRunning = status.weed_targeting_running;
+
+        // Enable/disable buttons based on connection status
+        document.getElementById('connect-robot-btn').classList.toggle('active', status.robot_connected);
+        document.getElementById('connect-laser-btn').classList.toggle('active', status.laser_connected);
+
+        if (!status.camera_available) {
+            document.querySelector('.video-overlay').textContent = 'Camera Offline';
+            document.querySelector('.video-overlay').style.color = '#FF3030';
+        } else {
+            document.querySelector('.video-overlay').textContent = 'Live Camera Feed';
+            document.querySelector('.video-overlay').style.color = '#64ffda';
+        }
+    } catch (err) {
+        console.error('Error checking connections:', err);
+
+        // Assume disconnected on error
+        updateStatusDot('mqtt-status', false);
+        updateStatusDot('robot-status', false);
+        updateStatusDot('laser-status', false);
+        updateStatusDot('weed-targeting-status', false);
+    }
+}
+
+function updateStatusDot(id, connected) {
+    const dot = document.getElementById(id);
+    if (connected) {
+        dot.classList.remove('disconnected');
+        dot.classList.add('connected');
+    } else {
+        dot.classList.remove('connected');
+        dot.classList.add('disconnected');
+    }
+}
+
+// Weed Targeting System Functions
+
+function toggleWeedTargetingPanel() {
+    const panel = document.getElementById('weed-targeting-panel');
+    const button = document.getElementById('weed-targeting-btn');
+
+    if (panel.style.display === 'none' || panel.style.display === '') {
+        panel.style.display = 'block';
+        button.classList.add('active');
+
+        // Show motor control section as well
+        document.getElementById('motor-control-section').style.display = 'block';
+
+        // Initialize motor control
+        setTimeout(() => {
+            updateMotorStatus();
+        }, 100);
+    } else {
+        panel.style.display = 'none';
+        button.classList.remove('active');
+
+        // Hide motor control section
+        document.getElementById('motor-control-section').style.display = 'none';
+    }
+}
+
+async function startWeedTargetingSystem() {
+    try {
+        const response = await fetch('/weed-targeting-start', { method: 'POST' });
+        const result = await response.json();
+
+        if (result.success) {
+            WEED_TARGETING.systemRunning = true;
+            updateWeedTargetingStatusDisplay();
+            alert('Weed targeting system started successfully');
+        } else {
+            alert(`Failed to start weed targeting system: ${result.message}`);
+        }
+    } catch (err) {
+        console.error('Error starting weed targeting system:', err);
+        alert('Error starting weed targeting system');
+    }
+}
+
+async function stopWeedTargetingSystem() {
+    try {
+        const response = await fetch('/weed-targeting-stop', { method: 'POST' });
+        const result = await response.json();
+
+        if (result.success) {
+            WEED_TARGETING.systemRunning = false;
+            WEED_TARGETING.targetingEnabled = false;
+            WEED_TARGETING.currentPhase = 'INACTIVE';
+            updateWeedTargetingStatusDisplay();
+            alert('Weed targeting system stopped successfully');
+        } else {
+            alert(`Failed to stop weed targeting system: ${result.message}`);
+        }
+    } catch (err) {
+        console.error('Error stopping weed targeting system:', err);
+        alert('Error stopping weed targeting system');
+    }
+}
+
+async function toggleWeedTargeting() {
+    try {
+        const enabled = !WEED_TARGETING.targetingEnabled;
+
+        const response = await fetch('/weed-targeting-toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: enabled })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            WEED_TARGETING.targetingEnabled = result.targeting_enabled;
+            updateWeedTargetingStatusDisplay();
+        } else {
+            alert(`Failed to toggle targeting: ${result.message}`);
+        }
+    } catch (err) {
+        console.error('Error toggling targeting:', err);
+        alert('Error toggling targeting');
+    }
+}
+
+async function stopWeedTargetingExecution() {
+    try {
+        const response = await fetch('/weed-targeting-stop-execution', { method: 'POST' });
+        const result = await response.json();
+
+        if (result.success) {
+            alert('Execution stopped successfully');
+        } else {
+            alert(`Failed to stop execution: ${result.message}`);
+        }
+    } catch (err) {
+        console.error('Error stopping execution:', err);
+        alert('Error stopping execution');
+    }
+}
+
+async function toggleWeedTargetingPattern() {
+    const enabled = !WEED_TARGETING.parameters.patternEnabled;
+    WEED_TARGETING.parameters.patternEnabled = enabled;
+
+    document.getElementById('pattern-toggle-btn').textContent =
+        `Patterns: ${enabled ? 'ON' : 'OFF'}`;
+
+    await updateWeedTargetingParameters();
+}
+
+async function updateWeedTargetingParameters() {
+    try {
+        const response = await fetch('/weed-targeting-params', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                observation_time: WEED_TARGETING.parameters.observationTime,
+                prediction_duration: WEED_TARGETING.parameters.predictionDuration,
+                prediction_delay: WEED_TARGETING.parameters.predictionDelay,
+                yolo_processing_delay: WEED_TARGETING.parameters.yoloDelay,
+                speed_scaling_factor: WEED_TARGETING.parameters.speedScaling,
+                noise_filter_strength: WEED_TARGETING.parameters.noiseFilterStrength,
+                noise_smoothing_window: WEED_TARGETING.parameters.noiseSmoothingWindow,
+                noise_movement_threshold: WEED_TARGETING.parameters.noiseMovementThreshold,
+                noise_outlier_threshold: WEED_TARGETING.parameters.noiseOutlierThreshold,
+                min_confidence_for_execution: WEED_TARGETING.parameters.minConfidence,
+                pattern_enabled: WEED_TARGETING.parameters.patternEnabled
+            })
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+            console.error('Failed to update parameters:', result.message);
+        }
+    } catch (err) {
+        console.error('Error updating parameters:', err);
+    }
+}
+
+async function updateWeedTargetingStatus() {
+    if (!WEED_TARGETING.systemRunning) return;
+
+    try {
+        const response = await fetch('/weed-targeting-status');
+        const result = await response.json();
+
+        if (result.success && result.status) {
+            const status = result.status;
+
+            WEED_TARGETING.systemRunning = status.running;
+            WEED_TARGETING.targetingEnabled = status.targeting_enabled;
+            WEED_TARGETING.currentPhase = status.target_phase;
+            WEED_TARGETING.currentTarget = status.current_target_id;
+            WEED_TARGETING.executingWeed = status.executing_weed_id;
+            WEED_TARGETING.weedCounts = {
+                inLaser: status.weeds_in_laser || { moving: 0, static: 0 },
+                outLaser: status.weeds_out_laser || { moving: 0, static: 0 }
+            };
+
+            updateWeedTargetingStatusDisplay();
+            updateWeedCountDisplay();
+        }
+    } catch (err) {
+        console.error('Error updating weed targeting status:', err);
+    }
+}
+
+function updateWeedTargetingStatusDisplay() {
+    const statusDisplay = document.getElementById('targeting-status-display');
+    const toggleBtn = document.getElementById('toggle-targeting-btn');
+
+    if (!WEED_TARGETING.systemRunning) {
+        statusDisplay.textContent = 'SYSTEM INACTIVE';
+        statusDisplay.className = 'targeting-status inactive';
+        toggleBtn.textContent = 'System Offline';
+        toggleBtn.disabled = true;
+    } else if (!WEED_TARGETING.targetingEnabled) {
+        statusDisplay.textContent = 'SYSTEM READY';
+        statusDisplay.className = 'targeting-status inactive';
+        toggleBtn.textContent = 'Enable Targeting';
+        toggleBtn.disabled = false;
+    } else {
+        const phase = WEED_TARGETING.currentPhase;
+        if (phase === 'OBSERVATION') {
+            statusDisplay.textContent = 'OBSERVING TARGETS';
+            statusDisplay.className = 'targeting-status observing';
+        } else if (phase === 'PREDICTION') {
+            statusDisplay.textContent = 'PREDICTING TRAJECTORY';
+            statusDisplay.className = 'targeting-status predicting';
+        } else if (phase === 'EXECUTION') {
+            statusDisplay.textContent = 'EXECUTING TARGETING';
+            statusDisplay.className = 'targeting-status executing';
+        } else {
+            statusDisplay.textContent = 'TARGETING ACTIVE';
+            statusDisplay.className = 'targeting-status observing';
+        }
+
+        toggleBtn.textContent = 'Disable Targeting';
+        toggleBtn.disabled = false;
+    }
+}
+
+function updateWeedCountDisplay() {
+    const inLaser = WEED_TARGETING.weedCounts.inLaser;
+    const outLaser = WEED_TARGETING.weedCounts.outLaser;
+
+    document.getElementById('weeds-in-laser').textContent =
+        `${inLaser.moving}M, ${inLaser.static}S`;
+    document.getElementById('weeds-out-laser').textContent =
+        `${outLaser.moving}M, ${outLaser.static}S`;
+
+    document.getElementById('current-target-id').textContent =
+        WEED_TARGETING.currentTarget || 'None';
+    document.getElementById('executing-weed-id').textContent =
+        WEED_TARGETING.executingWeed || 'None';
+}
+
+// Motor Control Functions
+async function moveMotor(direction) {
+    try {
+        const response = await fetch('/motor-enhanced', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cmd: 'move_direction',
+                direction: direction
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            updateCurrentDeviceDisplay(result.device, result.position);
+            console.log(`Motor moved ${direction}: Device ${result.device + 1} at (${result.position.x}, ${result.position.y})`);
+        } else {
+            console.error('Motor movement failed:', result.error);
+        }
+    } catch (err) {
+        console.error('Error moving motor:', err);
+    }
+}
+
+async function centerMotor() {
+    try {
+        const response = await fetch('/motor-enhanced', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cmd: 'center_current'
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            updateCurrentDeviceDisplay(result.device, result.position);
+            console.log(`Motor centered: Device ${result.device + 1} at center position`);
+        }
+    } catch (err) {
+        console.error('Error centering motor:', err);
+    }
+}
+
+async function switchToDevice(deviceIndex) {
+    if (deviceIndex >= MOTOR_CONTROL.deviceCount) {
+        console.log(`Device ${deviceIndex + 1} not available. Only ${MOTOR_CONTROL.deviceCount} devices connected.`);
+        return;
+    }
+
+    try {
+        const response = await fetch('/motor-enhanced', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cmd: 'switch_device',
+                device: deviceIndex
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            MOTOR_CONTROL.currentDevice = result.current_device;
+            updateDeviceSelection();
+            updateCurrentDeviceDisplay(result.current_device, result.position);
+            console.log(`Switched to Device ${result.current_device + 1}`);
+        }
+    } catch (err) {
+        console.error('Error switching device:', err);
+    }
+}
+
+async function setStepSize(stepSize) {
+    try {
+        const response = await fetch('/motor-enhanced', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cmd: 'set_step_size',
+                step_size: stepSize
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            MOTOR_CONTROL.stepSize = result.step_size;
+            console.log(`Step size set to: ${result.step_size}`);
+        }
+    } catch (err) {
+        console.error('Error setting step size:', err);
+    }
+}
+
+async function updateMotorStatus() {
+    try {
+        const response = await fetch('/motor-status');
+        const status = await response.json();
+
+        if (status.success) {
+            // Update motor control state
+            MOTOR_CONTROL.connected = status.connected;
+            MOTOR_CONTROL.deviceCount = status.device_count;
+            MOTOR_CONTROL.currentDevice = status.current_device;
+            MOTOR_CONTROL.devices = status.devices_info || [];
+            MOTOR_CONTROL.stepSize = status.step_size || 50;
+
+            // Update UI
+            updateMotorUI(status);
+        }
+    } catch (err) {
+        console.error('Error fetching motor status:', err);
+        // Assume disconnected on error
+        MOTOR_CONTROL.connected = false;
+        updateMotorConnectionStatus(false);
+    }
+}
+
+function updateMotorUI(status) {
+    // Update connection status
+    updateMotorConnectionStatus(status.connected);
+
+    // Show/hide motor controls based on connection
+    const controlSections = [
+        'device-selection',
+        'current-device-info',
+        'motor-movement',
+        'step-size-control'
+    ];
+
+    controlSections.forEach(sectionId => {
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.style.display = status.connected ? 'block' : 'none';
+        }
+    });
+
+    if (status.connected) {
+        // Update device selection
+        updateDeviceButtons();
+        updateDeviceSelection();
+
+        // Update current device info
+        updateCurrentDeviceDisplay(status.current_device, status.current_position);
+
+        // Update step size
+        const stepSlider = document.getElementById('step-size-slider');
+        const stepValue = document.getElementById('step-size-value');
+        if (stepSlider && stepValue) {
+            stepSlider.value = status.step_size;
+            stepValue.textContent = status.step_size;
+        }
+    }
+}
+
+function updateMotorConnectionStatus(connected) {
+    const statusDot = document.getElementById('motor-connection-status');
+    if (statusDot) {
+        if (connected) {
+            statusDot.classList.remove('disconnected');
+            statusDot.classList.add('connected');
+        } else {
+            statusDot.classList.remove('connected');
+            statusDot.classList.add('disconnected');
+        }
+    }
+}
+
+function updateDeviceButtons() {
+    const deviceButtonsContainer = document.getElementById('device-buttons');
+    if (!deviceButtonsContainer) return;
+
+    // Clear existing buttons
+    deviceButtonsContainer.innerHTML = '';
+
+    // Show device selection only if more than one device
+    const deviceSelection = document.getElementById('device-selection');
+    if (MOTOR_CONTROL.deviceCount <= 1) {
+        deviceSelection.style.display = 'none';
+        return;
+    }
+
+    deviceSelection.style.display = 'block';
+
+    // Create buttons for each device
+    for (let i = 0; i < MOTOR_CONTROL.deviceCount; i++) {
+        const button = document.createElement('button');
+        button.className = 'control-btn';
+        button.textContent = `Device ${i + 1}`;
+        button.onclick = () => switchToDevice(i);
+
+        // Highlight current device
+        if (i === MOTOR_CONTROL.currentDevice) {
+            button.classList.add('active');
+        }
+
+        deviceButtonsContainer.appendChild(button);
+    }
+}
+
+function updateDeviceSelection() {
+    // Update device button highlighting
+    const deviceButtons = document.querySelectorAll('#device-buttons .control-btn');
+    deviceButtons.forEach((button, index) => {
+        if (index === MOTOR_CONTROL.currentDevice) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
+}
+
+function updateCurrentDeviceDisplay(deviceIndex, position) {
+    // Update current device name
+    const deviceName = document.getElementById('current-device-name');
+    if (deviceName) {
+        deviceName.textContent = `Device ${deviceIndex + 1}`;
+    }
+
+    // Update position display
+    const xPos = document.getElementById('current-x-pos');
+    const yPos = document.getElementById('current-y-pos');
+
+    if (xPos && position) {
+        xPos.textContent = position.x;
+    }
+    if (yPos && position) {
+        yPos.textContent = position.y;
+    }
+}
+
+// Robot Control Functions
+async function connectRobot() {
+    try {
+        // 先断开连接，再重新连接，这样可以重置连接状态
+        await fetch('/disconnect-robot', { method: 'POST' });
+
+        const response = await fetch('/connect-robot', { method: 'POST' });
+        const result = await response.json();
+
+        if (result.success) {
+            document.getElementById('connect-robot-btn').classList.add('active');
+            updateStatusDot('robot-status', true);
+            alert('Robot connected successfully');
+        } else {
+            // 当连接失败时，确保UI显示为断开状态
+            document.getElementById('connect-robot-btn').classList.remove('active');
+            updateStatusDot('robot-status', false);
+            alert('Failed to connect to robot');
+        }
+    } catch (err) {
+        console.error('Error connecting to robot:', err);
+        document.getElementById('connect-robot-btn').classList.remove('active');
+        updateStatusDot('robot-status', false);
+        alert('Error connecting to robot');
+    }
+}
+
+async function disconnectRobot() {
+    try {
+        const response = await fetch('/disconnect-robot', { method: 'POST' });
+        const result = await response.json();
+
+        document.getElementById('connect-robot-btn').classList.remove('active');
+        updateStatusDot('robot-status', false);
+
+        return result.success;
+    } catch (err) {
+        console.error('Error disconnecting robot:', err);
+        return false;
+    }
+}
+
+async function connectLaser() {
+    try {
+        const response = await fetch('/connect-laser', { method: 'POST' });
+        const result = await response.json();
+
+        if (result.success) {
+            document.getElementById('connect-laser-btn').classList.add('active');
+            updateStatusDot('laser-status', true);
+            LASER.connected = true;
+            alert('Laser system connected successfully');
+        } else {
+            alert('Failed to connect to laser system');
+        }
+    } catch (err) {
+        console.error('Error connecting to laser:', err);
+        alert('Error connecting to laser system');
+    }
+}
+
+function toggleHeadingLock() {
+    CONFIG.lockHeading = !CONFIG.lockHeading;
+    const lockBtn = document.getElementById('lock-btn');
+
+    if (CONFIG.lockHeading) {
+        lockBtn.textContent = 'Lock Heading: ON';
+        lockBtn.classList.add('active');
+        CONFIG.lastLockHeading = 0;
+    } else {
+        lockBtn.textContent = 'Lock Heading: OFF';
+        lockBtn.classList.remove('active');
+        document.getElementById('map').style.transform = 'rotate(0deg)';
+        CONFIG.headingLockAngle = 0;
+    }
+}
+
+function toggleDataPanel() {
+    const dataPanel = document.getElementById('data-panel');
+    dataPanel.style.display = dataPanel.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('data-btn').classList.toggle('active');
+}
+
+function togglePIDPanel() {
+    const pidPanel = document.getElementById('pid-panel');
+    pidPanel.style.display = pidPanel.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('pid-btn').classList.toggle('active');
+}
+
+function toggleRouteMode() {
+    CONFIG.routeMode = !CONFIG.routeMode;
+    document.getElementById('point-btn').classList.toggle('active', CONFIG.routeMode);
+
+    if (CONFIG.routeMode) {
+        alert('Route Mode activated. Click on map to add waypoints.');
+    } else {
+        if (confirm('Route Mode deactivated. Clear existing waypoints?')) {
+            clearAllWaypoints();
+        }
+    }
+}
+
+function onMapClick(e) {
+    if (!CONFIG.routeMode) return;
+
+    // Adjust coordinates if heading lock is on
+    const adjustedCoords = adjustCoordinatesForLock(e.latlng);
+    addWaypoint(adjustedCoords);
+}
+
+function onMapContextMenu(e) {
+    // Show context menu at click position
+    const menu = document.getElementById('context-menu');
+    const x = e.originalEvent.clientX;
+    const y = e.originalEvent.clientY;
+
+    // Store coordinates for use in menu actions
+    lastMousePos = e.latlng;
+
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.style.display = 'block';
+
+    // Prevent default context menu
+    e.originalEvent.preventDefault();
+}
+
+function addWaypoint(latlng) {
+    routePoints.push(latlng);
+
+    // Create marker for waypoint
+    const marker = L.circleMarker(latlng, {
+        color: '#FF5722',
+        fillColor: '#FF5722',
+        fillOpacity: 0.7,
+        radius: 8
+    }).addTo(map);
+
+    // Add line connecting waypoints
+    if (routePoints.length > 1) {
+        const line = L.polyline([
+            routePoints[routePoints.length - 2],
+            routePoints[routePoints.length - 1]
+        ], {
+            color: '#FF5722',
+            weight: 3,
+            opacity: 0.7,
+            dashArray: '10, 5'
+        }).addTo(map);
+
+        routeLines.push(line);
+    }
+
+    // Add distance label
+    if (routePoints.length > 1) {
+        const p1 = routePoints[routePoints.length - 2];
+        const p2 = routePoints[routePoints.length - 1];
+        const dist = calculateDistance(p1, p2);
+
+        const midpoint = {
+            lat: (p1.lat + p2.lat) / 2,
+            lng: (p1.lng + p2.lng) / 2
+        };
+
+        const icon = L.divIcon({
+            className: 'distance-label',
+            html: `${dist.toFixed(2)}m`,
+            iconSize: [80, 20],
+            iconAnchor: [40, 10]
+        });
+
+        const label = L.marker(midpoint, { icon }).addTo(map);
+        routeLines.push(label);
+    }
+}
+
+function addWaypointAtPosition() {
+    if (lastMousePos) {
+        addWaypoint(lastMousePos);
+        document.getElementById('context-menu').style.display = 'none';
+    }
+}
+
+function clearAllWaypoints() {
+    // Remove all route lines and markers
+    routeLines.forEach(line => map.removeLayer(line));
+    routeLines = [];
+    routePoints = [];
+    document.getElementById('context-menu').style.display = 'none';
+}
+
+function targetWeedAtPosition() {
+    // Find nearest weed detection to last mouse position
+    // This would need GPS-to-pixel coordinate conversion
+    // For now, just show a message
+    alert('Targeting weed at map position is not implemented yet');
+    document.getElementById('context-menu').style.display = 'none';
+}
+
+async function sendRobotCommand(cmd) {
+    try {
+        await fetch('/robot-cmd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cmd})
+        });
+    } catch (err) {
+        console.error('Error sending robot command:', err);
+    }
+}
+
+// Enhanced keyboard handling - handles both robot and motor control
+function handleKeyDown(e) {
+    // Robot control keys (WASD)
+    const key = e.key.toLowerCase();
+    if (['w', 'a', 's', 'd'].includes(key)) {
+        e.preventDefault();
+        sendRobotCommand(key);
+        return; // Important: return to avoid conflicts with motor control
+    } else if (e.code === 'Space') {
+        e.preventDefault();
+        sendRobotCommand('stop');
+        return;
+    }
+
+    // Motor control keys (Arrow keys)
+    switch(e.code) {
+        case 'ArrowUp':
+            e.preventDefault();
+            moveMotor('up');
+            break;
+        case 'ArrowDown':
+            e.preventDefault();
+            moveMotor('down');
+            break;
+        case 'ArrowLeft':
+            e.preventDefault();
+            moveMotor('left');
+            break;
+        case 'ArrowRight':
+            e.preventDefault();
+            moveMotor('right');
+            break;
+        case 'KeyC':
+            if (!e.ctrlKey) { // Avoid conflict with Ctrl+C
+                e.preventDefault();
+                centerMotor();
+            }
+            break;
+        case 'F1':
+            e.preventDefault();
+            switchToDevice(0);
+            break;
+        case 'F2':
+            e.preventDefault();
+            switchToDevice(1);
+            break;
+    }
+}
+
+function handleKeyUp(e) {
+    const key = e.key.toLowerCase();
+    if (['w', 'a', 's', 'd'].includes(key)) {
+        e.preventDefault();
+        sendRobotCommand('stop');
+    }
+}
+
+// Laser Control Functions
+
+async function toggleLaser() {
+    if (!LASER.connected) {
+        alert('Laser system is not connected');
+        return;
+    }
+
+    try {
+        const response = await fetch('/laser-cmd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cmd: 'toggle'})
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            LASER.status = result.status;
+            const statusDisplay = document.getElementById('laser-status-display');
+
+            if (LASER.status === 'ON') {
+                statusDisplay.textContent = 'LASER ON';
+                statusDisplay.className = 'laser-status on';
+
+                // Start timer in manual mode
+                if (LASER.mode === 'MANUAL') {
+                    startLaserTimer();
+                }
+            } else {
+                statusDisplay.textContent = 'LASER OFF';
+                statusDisplay.className = 'laser-status off';
+                stopLaserTimer();
+            }
+        }
+    } catch (err) {
+        console.error('Error toggling laser:', err);
+        alert('Error toggling laser');
+    }
+}
+
+async function setLaserMode(mode) {
+    if (!LASER.connected) {
+        alert('Laser system is not connected');
+        return;
+    }
+
+    try {
+        const response = await fetch('/laser-cmd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cmd: 'toggle_mode'})
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            LASER.mode = result.mode;
+
+            // Update UI
+            if (LASER.mode === 'MANUAL') {
+                document.getElementById('manual-mode-btn').classList.add('active');
+                document.getElementById('auto-mode-btn').classList.remove('active');
+                document.getElementById('aim-power-container').style.display = 'none';
+                document.getElementById('experiment-btn').style.display = 'none';
+
+                // Show timer if laser is on
+                if (LASER.status === 'ON') {
+                    startLaserTimer();
+                }
+            } else {
+                document.getElementById('manual-mode-btn').classList.remove('active');
+                document.getElementById('auto-mode-btn').classList.add('active');
+                document.getElementById('aim-power-container').style.display = 'block';
+                document.getElementById('experiment-btn').style.display = 'block';
+
+                // Hide timer in auto mode
+                stopLaserTimer();
+            }
+        }
+    } catch (err) {
+        console.error('Error changing laser mode:', err);
+        alert('Error changing laser mode');
+    }
+}
+
+function startLaserTimer() {
+    if (LASER.timerInterval) {
+        clearInterval(LASER.timerInterval);
+    }
+
+    LASER.timerActive = true;
+    LASER.timerStartTime = Date.now();
+    document.getElementById('timer-display').style.display = 'block';
+
+    LASER.timerInterval = setInterval(updateLaserTimer, 10); // Update every 10ms
+}
+
+function stopLaserTimer() {
+    LASER.timerActive = false;
+    if (LASER.timerInterval) {
+        clearInterval(LASER.timerInterval);
+        LASER.timerInterval = null;
+    }
+    document.getElementById('timer-display').style.display = 'none';
+}
+
+function updateLaserTimer() {
+    if (!LASER.timerActive) return;
+
+    const elapsed = Date.now() - LASER.timerStartTime;
+    const minutes = Math.floor(elapsed / 60000);
+    const seconds = Math.floor((elapsed % 60000) / 1000);
+    const milliseconds = Math.floor((elapsed % 1000) / 10);
+
+    document.getElementById('timer-display').textContent =
+        `${minutes.toString().padStart(2, '0')}:` +
+        `${seconds.toString().padStart(2, '0')}.` +
+        `${milliseconds.toString().padStart(2, '0')}`;
+}
+
+async function updatePowerValue() {
+    const value = parseInt(this.value);
+    document.getElementById('power-value').textContent = value;
+
+    LASER.power = value;
+
+    // Change text color if high power level
+    if (value > LASER.highPowerThreshold) {
+        document.getElementById('power-value').style.color = '#FF3030';
+        document.getElementById('high-power-btn').style.display = 'block';
+    } else {
+        document.getElementById('power-value').style.color = '#64ffda';
+        document.getElementById('high-power-btn').style.display = 'none';
+
+        // Only send to server if power is within safe range
+        try {
+            await fetch('/laser-cmd', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({cmd: 'set_power', value})
+            });
+        } catch (err) {
+            console.error('Error updating power:', err);
+        }
+    }
+}
+
+async function updateDurationValue() {
+    const value = parseInt(this.value);
+    document.getElementById('duration-value').textContent = value;
+    LASER.duration = value;
+
+    try {
+        await fetch('/laser-cmd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cmd: 'set_duration', value})
+        });
+    } catch (err) {
+        console.error('Error updating duration:', err);
+    }
+}
+
+async function updateDelayValue() {
+    const value = parseInt(this.value);
+    document.getElementById('delay-value').textContent = value;
+    LASER.safetyDelay = value;
+
+    try {
+        await fetch('/laser-cmd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cmd: 'set_safety_delay', value})
+        });
+    } catch (err) {
+        console.error('Error updating safety delay:', err);
+    }
+}
+
+async function updateAimPowerValue() {
+    const value = parseInt(this.value);
+    document.getElementById('aim-power-value').textContent = value;
+    LASER.aimPower = value;
+
+    try {
+        await fetch('/laser-cmd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cmd: 'set_aim_power', value})
+        });
+    } catch (err) {
+        console.error('Error updating aim power:', err);
+    }
+}
+
+async function confirmHighPower() {
+    if (!LASER.connected) {
+        alert('Laser system is not connected');
+        return;
+    }
+
+    if (LASER.power <= LASER.highPowerThreshold) {
+        alert('Current power level does not require confirmation');
+        return;
+    }
+
+    if (confirm(`CAUTION: You are about to set a high power level (${LASER.power}). Continue?`)) {
+        try {
+            const response = await fetch('/laser-cmd', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({cmd: 'confirm_high_power'})
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                document.getElementById('power-value').style.color = '#64ffda';
+                document.getElementById('high-power-btn').style.display = 'none';
+                alert('High power level confirmed');
+            }
+        } catch (err) {
+            console.error('Error confirming high power:', err);
+            alert('Error confirming high power');
+        }
+    }
+}
+
+async function captureImage() {
+    if (!LASER.connected) {
+        alert('Laser system is not connected');
+        return;
+    }
+
+    try {
+        const response = await fetch('/laser-cmd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cmd: 'capture', prefix: 'manual'})
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            alert(`Image captured successfully: ${result.filename}`);
+        } else {
+            alert('Failed to capture image');
+        }
+    } catch (err) {
+        console.error('Error capturing image:', err);
+        alert('Error capturing image');
+    }
+}
+
+async function runExperiment() {
+    if (!LASER.connected) {
+        alert('Laser system is not connected');
+        return;
+    }
+
+    if (LASER.mode !== 'AUTO') {
+        alert('Experiment can only be run in AUTO mode');
+        return;
+    }
+
+    if (!confirm('Start weed treatment experiment? This will activate the laser.')) {
+        return;
+    }
+
+    try {
+        const statusDisplay = document.getElementById('laser-status-display');
+        statusDisplay.textContent = 'EXPERIMENT RUNNING';
+        statusDisplay.className = 'laser-status warning';
+
+        const response = await fetch('/laser-cmd', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cmd: 'run_experiment'})
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            alert('Experiment completed successfully');
+        } else {
+            alert('Experiment failed to complete');
+        }
+
+        // Force a data refresh to update status
+        fetchData();
+    } catch (err) {
+        console.error('Error running experiment:', err);
+        alert('Error running experiment');
+    }
+}
+
+async function updatePIDSettings() {
+    const kp = parseFloat(document.getElementById('kp-slider').value);
+    const ki = parseFloat(document.getElementById('ki-slider').value);
+    const kd = parseFloat(document.getElementById('kd-slider').value);
+    const speed = parseInt(document.getElementById('speed-slider').value);
+
+    try {
+        const response = await fetch('/pid-update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({kp, ki, kd, speed})
+        });
+
+        const result = await response.json();
+        alert(`PID settings updated: Kp=${result.kp}, Ki=${result.ki}, Kd=${result.kd}, Speed=${result.speed}`);
+    } catch (err) {
+        console.error('Error updating PID settings:', err);
+        alert('Error updating PID settings');
+    }
+}
+
+// Helper functions
+
+function openDatasetCollectionMode() {
+    // Navigate to the dataset collection page
+    window.location.href = '/dataset';
+}
+
+// Local camera functionality
+let localCameraActive = false;
+let localCameraStream = null;
+
+async function openLocalCamera() {
+    const videoContainer = document.querySelector('.video-container');
+    const localVideoElement = document.getElementById('local-camera-feed');
+    const statusText = document.querySelector('.video-overlay');
+
+    // Toggle camera state
+    if (localCameraActive) {
+        // Turn off camera
+        if (localCameraStream) {
+            localCameraStream.getTracks().forEach(track => track.stop());
+            localCameraStream = null;
+        }
+        videoContainer.classList.remove('local-camera-active');
+        document.getElementById('local-camera-btn').classList.remove('active');
+        statusText.textContent = 'Live Camera Feed';
+        localCameraActive = false;
+    } else {
+        try {
+            // Request camera access
+            localCameraStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            });
+
+            // Connect stream to video element
+            localVideoElement.srcObject = localCameraStream;
+
+            // Show local camera container
+            videoContainer.classList.add('local-camera-active');
+            document.getElementById('local-camera-btn').classList.add('active');
+            statusText.textContent = 'Local Camera Feed';
+            localCameraActive = true;
+        } catch (err) {
+            console.error('Error accessing local camera:', err);
+            alert('Could not access local camera: ' + err.message);
+        }
+    }
+}
+
+function calculateDistance(p1, p2) {
+    // Haversine formula for distance between two points on Earth
+    const R = 6371000; // Earth's radius in meters
+    const dLat = toRad(p2.lat - p1.lat);
+    const dLon = toRad(p2.lng - p1.lng);
+
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const d = R * c; // Distance in meters
+
+    return d;
+}
+
+function toRad(degrees) {
+    return degrees * Math.PI / 180;
+}
+
+function adjustCoordinatesForLock(latlng) {
+    if (!CONFIG.lockHeading) return latlng;
+
+    // Adjust coordinates based on map rotation
+    const center = map.getCenter();
+    const angleRad = CONFIG.headingLockAngle * Math.PI / 180;
+
+    // Project to pixel coordinates
+    const centerPoint = map.project(center, map.getZoom());
+    const clickPoint = map.project(latlng, map.getZoom());
+
+    // Calculate pixel offset from center
+    const dx = clickPoint.x - centerPoint.x;
+    const dy = clickPoint.y - centerPoint.y;
+
+    // Apply rotation
+    const cosA = Math.cos(angleRad);
+    const sinA = Math.sin(angleRad);
+    const rotatedX = dx * cosA - dy * sinA;
+    const rotatedY = dx * sinA + dy * cosA;
+
+    // Convert back to coordinates
+    const newPoint = L.point(centerPoint.x + rotatedX, centerPoint.y + rotatedY);
+    const newLatLng = map.unproject(newPoint, map.getZoom());
+
+    return newLatLng;
+}
+</script>
+</body>
+</html>

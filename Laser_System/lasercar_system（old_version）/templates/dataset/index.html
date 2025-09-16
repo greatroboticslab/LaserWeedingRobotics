@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dataset Collection</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0a192f;
+            color: #fff;
+            font-family: 'Roboto', sans-serif;
+            overflow: hidden;
+        }
+        
+        .camera-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000;
+            overflow: hidden;
+        }
+        
+        #camera-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(13, 25, 48, 0.85);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #64ffda;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.3);
+            z-index: 10;
+        }
+        
+        .counter {
+            font-size: 24px;
+            font-weight: bold;
+            color: #64ffda;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(13, 25, 48, 0.85);
+            color: #FF3030;
+            border: 1px solid #FF3030;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 10;
+            transition: all 0.3s;
+        }
+        
+        .close-btn:hover {
+            background-color: #FF3030;
+            color: #fff;
+        }
+        
+        .status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #64ffda;
+            text-align: center;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 5px rgba(100, 255, 218, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(100, 255, 218, 0.4); }
+            100% { box-shadow: 0 0 5px rgba(100, 255, 218, 0.2); }
+        }
+    </style>
+</head>
+<body>
+    <div class="camera-container">
+        <video id="camera-feed" autoplay></video>
+        
+        <button class="close-btn" id="close-btn">Exit Collection Mode</button>
+        
+        <div class="overlay">
+            <div class="counter" id="image-counter">Images: 0</div>
+            <div class="status" id="status">Initializing camera...</div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let imageCount = 0;
+        let captureInterval = null;
+        let videoStream = null;
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize camera
+            initCamera();
+            
+            // Set up event listeners
+            document.getElementById('close-btn').addEventListener('click', exitCollectionMode);
+        });
+        
+        async function initCamera() {
+            try {
+                // Request camera access with highest resolution
+                const constraints = {
+                    video: {
+                        width: { ideal: 4096 },
+                        height: { ideal: 2160 },
+                        facingMode: "environment" // Use back camera if available
+                    }
+                };
+                
+                // Get camera stream
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                const videoElement = document.getElementById('camera-feed');
+                videoElement.srcObject = videoStream;
+                
+                // Wait for video to be loaded
+                videoElement.onloadedmetadata = function() {
+                    document.getElementById('status').textContent = 'Camera ready';
+                    
+                    // Start capturing images
+                    startCapturing();
+                };
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                document.getElementById('status').textContent = 'Error: ' + err.message;
+            }
+        }
+        
+        function startCapturing() {
+            // Update status
+            document.getElementById('status').textContent = 'Capturing images...';
+            
+            // Start capture interval (1 second)
+            captureInterval = setInterval(captureImage, 1000);
+        }
+        
+        async function captureImage() {
+            try {
+                const videoElement = document.getElementById('camera-feed');
+                
+                // Create a canvas to capture the frame
+                const canvas = document.createElement('canvas');
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                
+                // Draw the current video frame to the canvas
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                
+                // Convert canvas to blob
+                const blob = await new Promise(resolve => {
+                    canvas.toBlob(resolve, 'image/jpeg', 1.0); // Max quality
+                });
+                
+                // Send the image to the server
+                await sendImageToServer(blob);
+                
+                // Update counter
+                imageCount++;
+                document.getElementById('image-counter').textContent = `Images: ${imageCount}`;
+                
+                // Flash status to indicate capture
+                const status = document.getElementById('status');
+                status.textContent = 'Image captured!';
+                status.classList.add('pulse');
+                
+                setTimeout(() => {
+                    status.classList.remove('pulse');
+                    status.textContent = 'Capturing images...';
+                }, 500);
+                
+            } catch (err) {
+                console.error('Error capturing image:', err);
+                document.getElementById('status').textContent = 'Error: ' + err.message;
+            }
+        }
+        
+        async function sendImageToServer(blob) {
+            try {
+                // Create a FormData object
+                const formData = new FormData();
+                formData.append('image', blob, `image_${Date.now()}.jpg`);
+                
+                // Send to server
+                const response = await fetch('/save-dataset-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Server error: ' + response.status);
+                }
+                
+            } catch (err) {
+                console.error('Error sending image to server:', err);
+                throw err;
+            }
+        }
+        
+        function exitCollectionMode() {
+            // Stop capturing
+            if (captureInterval) {
+                clearInterval(captureInterval);
+            }
+            
+            // Stop video stream
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Redirect back to main page
+            window.location.href = '/';
+        }
+        
+        // Handle page unload to clean up resources
+        window.addEventListener('beforeunload', function() {
+            if (captureInterval) {
+                clearInterval(captureInterval);
+            }
+            
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>

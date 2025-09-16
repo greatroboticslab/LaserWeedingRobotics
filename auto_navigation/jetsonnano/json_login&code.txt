@@ -1,0 +1,464 @@
+For jetson nano:
+
+ssh nano241@192.168.1.102
+
+password:
+
+Robotics!!
+
+(max gpu)
+sudo nvpmodel -m 0
+sudo jetson_clocks
+
+start docker(yolo11n docker)
+
+sudo docker start yolov11n
+sudo docker exec -it yolov11n /bin/bash
+
+python3 weed4.py
+
+for exit:
+exit
+
+
+
+
+
+weed4.py code:
+
+root@bbb19c244549:/ultralytics# cat weed4.py
+#!/usr/bin/python3
+import cv2
+import numpy as np
+from ultralytics import YOLO
+import time
+import math
+import logging
+import paho.mqtt.client as mqtt
+import threading
+import json
+import base64
+import argparse
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class WeedDetector:
+    """
+    Weed detection system using YOLO model with MQTT communication
+    """
+    def __init__(self, model_path='weed.pt', mqtt_broker="192.168.1.103", mqtt_port=1883):
+        """
+        Initialize the weed detector
+        
+        Args:
+            model_path: Path to YOLO model file
+            mqtt_broker: MQTT broker address
+            mqtt_port: MQTT broker port
+        """
+        self.model_path = model_path
+        self.mqtt_broker = mqtt_broker
+        self.mqtt_port = mqtt_port
+        
+        # Status flags
+        self.running = True
+        self.camera_running = False
+        
+        # Frame dimensions
+        self.frame_width = None
+        self.frame_height = None
+        
+        # Detection parameters
+        self.confidence_threshold = 0.4
+        self.nms_threshold = 0.45
+        self.max_detections = 20
+        
+        # Performance tracking
+        self.fps = 0
+        self.frame_times = []
+        
+        # Threading lock for thread-safe operations
+        self.lock = threading.Lock()
+        
+        # Initialize components
+        self.init_model()
+        self.init_mqtt()
+    
+    def init_model(self):
+        """Initialize the YOLO model"""
+        try:
+            logger.info(f"Loading YOLO model from {self.model_path}")
+            self.model = YOLO(self.model_path)
+            logger.info("YOLO model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load YOLO model: {e}")
+            raise
+    
+    def init_mqtt(self):
+        """Initialize MQTT client and connect to broker"""
+        try:
+            logger.info(f"Connecting to MQTT broker at {self.mqtt_broker}:{self.mqtt_port}")
+            self.mqtt_client = mqtt.Client()
+            self.mqtt_client.on_connect = self.on_mqtt_connect
+            self.mqtt_client.connect(self.mqtt_broker, self.mqtt_port, 60)
+            self.mqtt_client.loop_start()
+            logger.info("Connected to MQTT broker")
+        except Exception as e:
+            logger.error(f"Failed to connect to MQTT broker: {e}")
+            self.mqtt_client = None
+    
+    def on_mqtt_connect(self, client, userdata, flags, rc):
+        """Callback when connected to MQTT broker"""
+        logger.info(f"Connected to MQTT broker with result code {rc}")
+    
+    def publish_detection(self, detections, frame_width, frame_height, fps):
+        """
+        Publish detection results to MQTT
+        
+        Args:
+            detections: List of detection results
+            frame_width: Width of the frame
+            frame_height: Height of the frame
+            fps: Current frames per second
+        """
+        if not self.mqtt_client:
+            return
+            
+        try:
+            # Format detections for MQTT message
+            detection_data = []
+            for det in detections:
+                # Convert box coordinates to normalized values
+                x1, y1, x2, y2, conf, cls = det
+                center_x = ((x1 + x2) / 2) / frame_width
+                center_y = ((y1 + y2) / 2) / frame_height
+                width = (x2 - x1) / frame_width
+                height = (y2 - y1) / frame_height
+                
+                detection_data.append({
+                    'x': float(center_x),
+                    'y': float(center_y),
+                    'width': float(width),
+                    'height': float(height),
+                    'size': float(width * height),
+                    'confidence': float(conf),
+                    'class': int(cls)
+                })
+            
+            # Create message payload
+            message = {
+                'timestamp': time.time(),
+                'detections': detection_data,
+                'fps': round(fps, 2),
+                'frame_width': frame_width,
+                'frame_height': frame_height
+            }
+            
+            # Publish to MQTT
+            self.mqtt_client.publish('camera/detections', json.dumps(message))
+        except Exception as e:
+            logger.error(f"Error publishing detections: {e}")
+    
+    def publish_frame(self, frame):
+        """
+        Publish camera frame to MQTT
+        
+        Args:
+            frame: OpenCV frame to publish
+        """
+        if not self.mqtt_client:
+            return
+            
+        try:
+            # Resize frame to reduce data size
+            max_width = 640
+            if frame.shape[1] > max_width:
+                scale = max_width / frame.shape[1]
+                new_width = int(frame.shape[1] * scale)
+                new_height = int(frame.shape[0] * scale)
+                frame = cv2.resize(frame, (new_width, new_height))
+            
+            # Encode frame as JPEG
+            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            
+            # Convert to base64 string
+            jpg_as_text = base64.b64encode(buffer)
+            
+            # Publish to MQTT
+            self.mqtt_client.publish('camera/frame', jpg_as_text)
+        except Exception as e:
+            logger.error(f"Error publishing frame: {e}")
+    
+    def process_frame(self, frame):
+        """
+        Process a frame for weed detection
+        
+        Args:
+            frame: OpenCV frame to process
+            
+        Returns:
+            Processed frame with detection visualizations
+        """
+        start_time = time.time()
+        
+        # Store frame dimensions
+        if self.frame_width is None:
+            self.frame_height, self.frame_width = frame.shape[:2]
+        
+        # Detect weeds
+        results = self.model(frame, verbose=False)[0]
+        
+        # Extract detection boxes
+        detections = []
+        for det in results.boxes.data.tolist():
+            x1, y1, x2, y2, conf, cls = det
+            if int(cls) == 0 and conf > self.confidence_threshold:  # Class 0 is weed
+                detections.append([x1, y1, x2, y2, conf, cls])
+        
+        # Calculate FPS
+        self.frame_times.append(time.time() - start_time)
+        if len(self.frame_times) > 30:
+            self.frame_times.pop(0)
+        self.fps = len(self.frame_times) / sum(self.frame_times)
+        
+        # Publish detection results
+        self.publish_detection(detections, self.frame_width, self.frame_height, self.fps)
+        
+        # Publish frame periodically (every 5 frames to reduce bandwidth)
+        if len(self.frame_times) % 5 == 0:
+            self.publish_frame(frame)
+        
+        # Draw detections on frame
+        for det in detections:
+            x1, y1, x2, y2, conf, cls = det
+            
+            # Draw bounding box
+            color = (0, 255, 0)  # Green for weeds
+            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+            
+            # Draw label
+            label = f"Weed: {conf:.2f}"
+            text_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+            cv2.rectangle(frame, (int(x1), int(y1) - text_size[1] - 5), (int(x1) + text_size[0], int(y1)), color, -1)
+            cv2.putText(frame, label, (int(x1), int(y1) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+        
+        # Draw FPS
+        cv2.putText(frame, f"FPS: {self.fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        
+        return frame
+    
+    def camera_loop(self):
+        """Main camera processing loop"""
+        try:
+            # Initialize camera
+            logger.info("Initializing camera...")
+            self.cap = cv2.VideoCapture(0)
+            
+            # Try to set camera resolution
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            
+            # Check if camera opened successfully
+            if not self.cap.isOpened():
+                logger.error("Failed to open camera")
+                return
+            
+            logger.info("Camera initialized successfully")
+            self.camera_running = True
+            
+            # Main loop
+            while self.running and self.camera_running:
+                # Read frame
+                ret, frame = self.cap.read()
+                if not ret:
+                    logger.warning("Failed to read frame from camera")
+                    time.sleep(0.1)
+                    continue
+                
+                # Process frame
+                processed_frame = self.process_frame(frame)
+                
+                # Display frame if GUI is enabled
+                if self.gui_enabled:
+                    # cv2.imshow('Weed Detection', processed_frame)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+                        
+                # Limit frame rate if needed
+                # time.sleep(0.01)
+                
+        except Exception as e:
+            logger.error(f"Error in camera loop: {e}")
+        finally:
+            # Clean up
+            if hasattr(self, 'cap') and self.cap is not None:
+                self.cap.release()
+            if self.gui_enabled and cv2.getWindowProperty('Weed Detection', cv2.WND_PROP_VISIBLE) >= 1:
+                cv2.destroyWindow('Weed Detection')
+            
+            self.camera_running = False
+            logger.info("Camera loop stopped")
+    
+    def run(self, gui_enabled=True):
+        """
+        Start the weed detection system
+        
+        Args:
+            gui_enabled: Whether to show GUI window with detections
+        """
+        self.gui_enabled = gui_enabled
+        
+        # Start camera thread
+        camera_thread = threading.Thread(target=self.camera_loop)
+        camera_thread.daemon = True
+        camera_thread.start()
+        
+        try:
+            # Keep main thread alive
+            while self.running:
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            logger.info("Stopping weed detection system...")
+        finally:
+            self.stop()
+    
+    def stop(self):
+        """Stop the weed detection system"""
+        self.running = False
+        self.camera_running = False
+        
+        # Stop MQTT client
+        if hasattr(self, 'mqtt_client') and self.mqtt_client:
+            self.mqtt_client.loop_stop()
+            self.mqtt_client.disconnect()
+        
+        logger.info("Weed detection system stopped")
+
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description='Weed detection system using YOLO')
+    parser.add_argument('--model', type=str, default='weed.pt',
+                        help='Path to YOLO model (default: weed.pt)')
+    parser.add_argument('--mqtt-broker', type=str, default='192.168.1.103',
+                        help='MQTT broker address (default: 192.168.1.103)')
+    parser.add_argument('--mqtt-port', type=int, default=1883,
+                        help='MQTT broker port (default: 1883)')
+    parser.add_argument('--no-gui', action='store_true',
+                        help='Disable GUI')
+    parser.add_argument('--debug', action='store_true',
+                        help='Enable debug logging')
+    
+    args = parser.parse_args()
+    
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+    
+    try:
+        detector = WeedDetector(
+            model_path=args.model,
+            mqtt_broker=args.mqtt_broker,
+            mqtt_port=args.mqtt_port
+        )
+        
+        logger.info("Starting weed detection system...")
+        detector.run(gui_enabled=not args.no_gui)
+    except Exception as e:
+        logger.error(f"Error running weed detector: {e}")
+        return 1
+    
+    return 0
+
+if __name__ == '__main__':
+    exit(main())
+
+
+
+
+here is the code for server:
+
+sudo nano /home/nano241/start_weed_detection.sh
+
+:
+#!/bin/bash
+
+# Record logs
+exec > /home/nano241/weed_service.log 2>&1
+echo "Startup script execution started: $(date)"
+
+# Set GPU performance mode
+echo "Setting GPU performance mode..."
+nvpmodel -m 0
+jetson_clocks
+
+# Wait for network to be ready
+echo "Waiting for network to be ready..."
+for i in {1..30}; do
+  if ping -c 1 192.168.1.103 &> /dev/null; then
+    echo "Network is ready!"
+    break
+  fi
+  echo "Network not ready, waiting ($i/30)..."
+  sleep 2
+done
+
+# Check Docker service
+echo "Checking Docker service..."
+systemctl is-active --quiet docker || {
+  echo "Docker service not running, starting Docker..."
+  systemctl start docker
+  sleep 5
+}
+
+# Start container
+echo "Starting container..."
+docker start yolov11n
+sleep 3
+
+# Ensure camera device exists
+echo "Checking camera device..."
+if [ ! -e /dev/video0 ]; then
+  echo "Warning: camera device not found!"
+  # Try reloading camera module
+  modprobe uvcvideo
+  sleep 2
+fi
+
+# Run Python script (headless mode)
+echo "Running Python script (headless mode)..."
+docker exec -d \
+  --privileged \
+  -e DISPLAY="" \
+  -e QT_X11_NO_MITSHM=1 \
+  -e PYTHONUNBUFFERED=1 \
+  yolov11n python3 /ultralytics/weed4.py
+
+echo "Startup script completed: $(date)"
+
+：
+sudo chmod +x /home/nano241/start_weed_detection.sh
+：
+sudo nano /etc/systemd/system/weed-detection.service
+
+
+：
+[Unit]
+Description=Weed Detection Service
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=nano241
+ExecStart=/home/nano241/start_weed_detection.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+：
+sudo systemctl enable weed-detection.service
+sudo systemctl start weed-detection.service
+
+：
+sudo systemctl status weed-detection.service
