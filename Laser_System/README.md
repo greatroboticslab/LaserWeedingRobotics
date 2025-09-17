@@ -146,19 +146,19 @@ python app.py
 - **GPS Module**: Absolute positioning reference
 - **Safety Sensors**: Emergency stop mechanisms
 
-## 📊 Performance Specifications
+## 📊 System Capabilities
 
-### **Targeting Accuracy**
-- **Positioning Precision**: <1mm at 1m distance
-- **Response Time**: <100ms total system latency
-- **Tracking Rate**: 30+ FPS real-time operation
-- **Multi-target Capability**: Up to 10 simultaneous objects
+### **Targeting System**
+- **Calibration-based positioning**: Camera-to-laser coordinate mapping
+- **Real-time operation**: Live camera feed processing
+- **Multi-object support**: Can track multiple targets simultaneously
+- **Configurable accuracy**: Depends on calibration quality and setup
 
-### **Calibration Accuracy**
-- **Transformation Error**: <2 pixels RMS
-- **Repeatability**: <0.5mm standard deviation
-- **Coverage Area**: Configurable working regions
-- **Calibration Speed**: 50-200 points per minute
+### **Calibration System**
+- **Flexible calibration**: Manual, grid, and automatic modes
+- **Multiple transformation methods**: Homography, KNN, weighted interpolation
+- **Working area definition**: User-defined region boundaries
+- **Validation feedback**: Real-time accuracy assessment
 
 ## 🛡️ Safety Features
 
