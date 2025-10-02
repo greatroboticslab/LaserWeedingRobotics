@@ -1,0 +1,295 @@
+#include <IBusBM.h>
+#include <RoboClaw.h>
+#include <WiFi.h>
+
+// WiFi configuration
+const char* ssid     = "Linksys07479";
+const char* password = "bs8hdvwgnx";
+#define TCP_PORT 10001
+
+// Hardware
+IBusBM    ibus;
+RoboClaw  roboclaw(&Serial, 10000);
+#define Mot1 0x80
+#define Mot2 0x81
+
+// Network
+WiFiServer server(TCP_PORT);
+WiFiClient client;
+
+// Use double buffer to avoid lock contention
+struct ChannelData {
+  uint16_t channels[10];
+  int steer;
+  int throttle;
+  int speedLimit;
+  bool switches[7]; // ch4, vrA, vrB, swA, swB, swC, swD
+  int motorLeft;
+  int motorRight;
+  uint8_t mode;
+  unsigned long timestamp;
+};
+
+// Double buffer system
+ChannelData buffer1, buffer2;
+volatile ChannelData* writeBuffer = &buffer1;
+volatile ChannelData* readBuffer = &buffer2;
+volatile bool newDataAvailable = false;
+SemaphoreHandle_t bufferSwapMutex;
+
+// WiFi task - Core 0
+void WiFiTask(void * parameter) {
+  // WiFi initialization
+  IPAddress staticIP(192, 168, 1, 104);
+  IPAddress gateway(192, 168, 1, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.config(staticIP, gateway, subnet);
+  WiFi.begin(ssid, password);
+  server.begin();
+  
+  Serial.println("[Core 0] WiFi task started");
+  
+  unsigned long lastDataSend = 0;
+  char sendBuffer[512]; // Pre-allocated send buffer
+  ChannelData localCopy; // Local data copy
+  
+  for(;;) {
+    // WiFi management (simplified)
+    if (WiFi.status() != WL_CONNECTED) {
+      static unsigned long lastRetry = 0;
+      if (millis() - lastRetry > 5000) {
+        WiFi.reconnect();
+        lastRetry = millis();
+      }
+    } else {
+      // Client management
+      WiFiClient newClient = server.available();
+      if (newClient) {
+        if (!client || !client.connected()) {
+          client = newClient;
+          client.setNoDelay(true);
+        } else {
+          newClient.stop();
+        }
+      }
+    }
+    
+    // Send data
+    if (client && client.connected() && (millis() - lastDataSend >= 20)) {
+      // Quick data copy (minimal lock time)
+      if (newDataAvailable) {
+        if (xSemaphoreTake(bufferSwapMutex, 0) == pdTRUE) {
+          memcpy(&localCopy, (void*)readBuffer, sizeof(ChannelData));
+          newDataAvailable = false;
+          xSemaphoreGive(bufferSwapMutex);
+          
+          // Build send string outside of lock
+          int len = snprintf(sendBuffer, sizeof(sendBuffer),
+            "DATA %lu CH1:%d CH2:%d CH3:%d CH4:%d CH5:%d CH6:%d CH7:%d CH8:%d CH9:%d CH10:%d "
+            "ST:%d TH:%d LM:%d ML:%d MR:%d MD:%d SW:%d%d%d%d%d%d%d\n",
+            localCopy.timestamp,
+            localCopy.channels[0], localCopy.channels[1], localCopy.channels[2],
+            localCopy.channels[3], localCopy.channels[4], localCopy.channels[5],
+            localCopy.channels[6], localCopy.channels[7], localCopy.channels[8],
+            localCopy.channels[9],
+            localCopy.steer, localCopy.throttle, localCopy.speedLimit,
+            localCopy.motorLeft, localCopy.motorRight, localCopy.mode,
+            localCopy.switches[0], localCopy.switches[1], localCopy.switches[2],
+            localCopy.switches[3], localCopy.switches[4], localCopy.switches[5],
+            localCopy.switches[6]
+          );
+          
+          client.write((uint8_t*)sendBuffer, len);
+          lastDataSend = millis();
+        }
+      }
+    }
+    
+    // Handle commands
+    if (client && client.connected() && client.available()) {
+      String cmd = client.readStringUntil('\n');
+      if (cmd == "PING") client.println("PONG");
+    }
+    
+    vTaskDelay(5 / portTICK_PERIOD_MS);
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("\n========================================");
+  Serial.println("FlySky 10CH Optimized Dual-Core v5.0");
+  Serial.println("========================================");
+  
+  // Initialize hardware
+  roboclaw.begin(115200);
+  ibus.begin(Serial2, IBUSBM_NOTIMER);
+  
+  // Initialize mutex
+  bufferSwapMutex = xSemaphoreCreateMutex();
+  
+  // Initialize buffers
+  memset(&buffer1, 0, sizeof(ChannelData));
+  memset(&buffer2, 0, sizeof(ChannelData));
+  
+  // Create WiFi task on Core 0
+  xTaskCreatePinnedToCore(
+    WiFiTask,
+    "WiFi",
+    8192,
+    NULL,
+    1,
+    NULL,
+    0
+  );
+  
+  Serial.println("\nControl Modes:");
+  Serial.println("- SwA ON = 100% Forward");
+  Serial.println("- SwB ON = Stop (Auto-target signal)");
+  Serial.println("- SwC ON = Emergency Stop");
+  Serial.println("- SwD = Laser Control");
+  Serial.println("========================================\n");
+  
+  delay(100);
+}
+
+void loop() {
+  // Core 1: Pure motor control, non-blocking!
+  static unsigned long lastSwap = 0;
+  
+  // Read iBus
+  ibus.loop();
+  
+  // Process data directly to write buffer
+  for (int ch = 0; ch < 10; ch++) {
+    writeBuffer->channels[ch] = ibus.readChannel(ch);
+  }
+  
+  // Process control values
+  if (writeBuffer->channels[0] >= 900 && writeBuffer->channels[0] <= 2100) {
+    writeBuffer->steer = map(writeBuffer->channels[0], 1000, 2000, -100, 100);
+    if (abs(writeBuffer->steer) < 5) writeBuffer->steer = 0;
+  }
+  
+  if (writeBuffer->channels[1] >= 900 && writeBuffer->channels[1] <= 2100) {
+    writeBuffer->throttle = map(writeBuffer->channels[1], 1000, 2000, -100, 100);
+    if (abs(writeBuffer->throttle) < 5) writeBuffer->throttle = 0;
+  }
+  
+  if (writeBuffer->channels[2] >= 900 && writeBuffer->channels[2] <= 2100) {
+    writeBuffer->speedLimit = map(writeBuffer->channels[2], 1000, 2000, 1, 100);
+  }
+  
+  // Process switches
+  for (int i = 0; i < 7; i++) {
+    writeBuffer->switches[i] = (writeBuffer->channels[i+3] > 1500);
+  }
+  
+  // NEW: Calculate mode based on switches
+  // SwA (CH7) = switches[3] = 100% forward
+  // SwB (CH8) = switches[4] = Stop for auto-target
+  // SwC (CH9) = switches[5] = Emergency stop
+  // SwD (CH10) = switches[6] = Laser control
+  
+  bool swA = writeBuffer->switches[3];  // CH7
+  bool swB = writeBuffer->switches[4];  // CH8
+  bool swC = writeBuffer->switches[5];  // CH9
+  bool swD = writeBuffer->switches[6];  // CH10
+  
+  // Determine control mode
+  writeBuffer->mode = 0; // NORMAL
+  
+  if (swC) {
+    // SwC = Emergency Stop (highest priority)
+    writeBuffer->mode = 3; // EMERGENCY
+  } else if (swB) {
+    // SwB = Stop for auto-target
+    writeBuffer->mode = 2; // STOP_AUTO
+  } else if (swA) {
+    // SwA = 100% Forward
+    writeBuffer->mode = 1; // FORWARD_100
+  }
+  
+  // Calculate motor speeds based on mode
+  int leftSpeed = 0;
+  int rightSpeed = 0;
+  
+  switch (writeBuffer->mode) {
+    case 0: // NORMAL - Manual control
+      {
+        float speedMult = writeBuffer->speedLimit / 100.0;
+        leftSpeed = constrain((writeBuffer->throttle + writeBuffer->steer) * speedMult, -100, 100);
+        rightSpeed = constrain((writeBuffer->throttle - writeBuffer->steer) * speedMult, -100, 100);
+      }
+      break;
+      
+    case 1: // FORWARD_100 (SwA)
+      leftSpeed = writeBuffer->speedLimit;
+      rightSpeed = writeBuffer->speedLimit;
+      break;
+      
+    case 2: // STOP_AUTO (SwB)
+    case 3: // EMERGENCY (SwC)
+      leftSpeed = 0;
+      rightSpeed = 0;
+      break;
+  }
+  
+  writeBuffer->motorLeft = leftSpeed;
+  writeBuffer->motorRight = rightSpeed;
+  writeBuffer->timestamp = millis();
+  
+  // Update motors immediately!
+  int motorLeft = map(leftSpeed, -100, 100, 0, 127);
+  int motorRight = map(rightSpeed, -100, 100, 0, 127);
+  if (leftSpeed == 0) motorLeft = 64;
+  if (rightSpeed == 0) motorRight = 64;
+  
+  roboclaw.ForwardBackwardM1(Mot1, motorLeft);
+  roboclaw.ForwardBackwardM1(Mot2, motorRight);
+  
+  // Swap buffers every 20ms (non-blocking)
+  if (millis() - lastSwap >= 20) {
+    if (xSemaphoreTake(bufferSwapMutex, 0) == pdTRUE) {
+      // Quick pointer swap
+      volatile ChannelData* temp = writeBuffer;
+      writeBuffer = readBuffer;
+      readBuffer = temp;
+      newDataAvailable = true;
+      xSemaphoreGive(bufferSwapMutex);
+      lastSwap = millis();
+    }
+  }
+  
+  // Debug output (low frequency)
+  static unsigned long lastDebug = 0;
+  if (millis() - lastDebug > 1000) {
+    Serial.print("[Motor] L:");
+    Serial.print(leftSpeed);
+    Serial.print("% R:");
+    Serial.print(rightSpeed);
+    Serial.print("% | Mode:");
+    
+    switch(writeBuffer->mode) {
+      case 0: Serial.print("NORMAL"); break;
+      case 1: Serial.print("FWD_100"); break;
+      case 2: Serial.print("STOP_AUTO"); break;
+      case 3: Serial.print("EMERGENCY"); break;
+    }
+    
+    Serial.print(" | SwA:");
+    Serial.print(swA);
+    Serial.print(" SwB:");
+    Serial.print(swB);
+    Serial.print(" SwC:");
+    Serial.print(swC);
+    Serial.print(" SwD:");
+    Serial.print(swD);
+    Serial.print(" | WiFi:");
+    Serial.println(WiFi.status() == WL_CONNECTED ? "OK" : "...");
+    lastDebug = millis();
+  }
+  
+  // Minimal yield to prevent WDT
+  yield();
+}
