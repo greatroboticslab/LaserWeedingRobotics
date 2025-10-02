@@ -1,229 +1,349 @@
-# Laser System Module
+# Autonomous Laser Weed Control System
 
-## 🎯 Overview
+A comprehensive autonomous laser-based weed management system combining artificial intelligence, precision laser technology, and robotic navigation for sustainable agriculture.
 
-The Laser System module is the core component responsible for precision laser control, targeting, and weed elimination. This system integrates high-accuracy galvanometer control, computer vision-based calibration, and advanced predictive targeting algorithms to achieve sub-millimeter precision in agricultural applications.
+## 🚀 New Features (Latest Update)
 
-## 📁 Directory Structure
+### 🎮 FlySky Remote Control Integration
+- **SwA**: Moving target mode (autonomous predictive targeting)
+- **SwB**: Auto static detection mode (automatic stationary weed elimination)
+- **SwC**: Emergency/Manual control mode (joystick laser control)
+- **SwD**: Laser power toggle
+- Real-time WiFi communication with ESP32
+- Manual joystick control for laser positioning and power
+
+### 🎯 Dual Motor Laser System
+- Synchronized dual-laser tracking
+- Independent calibration for each motor
+- Both lasers follow the same predicted trajectory
+- Enhanced coverage and redundancy
+
+### 🧠 Intelligent Weed Detection
+- **Area filtering** to prevent false detection of large grass patches
+- Aspect ratio filtering for edge detection
+- Configurable size thresholds (0.08% - 18% of frame)
+- Advanced noise filtering for shaky movements and rough terrain
+
+### 📡 ESP32 Dual-Core Optimization
+- **Core 0**: WiFi communication and data streaming
+- **Core 1**: Real-time motor control (non-blocking)
+- Double-buffer system for lock-free data exchange
+- 20ms update rate with <5ms latency
+
+### 🎪 Static Targeting System
+- **Two-phase operation**:
+  1. AIMING phase (laser OFF, 0.5-3s)
+  2. FIRING phase (laser ON, 5-25s)
+- Automatic detection of stationary weeds
+- Configurable timeout and duration
+
+### ⚡ Enhanced Trajectory Prediction
+- YOLO processing delay compensation (auto-measured)
+- Fast trajectory method for quick response
+- Speed scaling factor for accuracy tuning
+- Multi-stage noise filtering
+
+## 🏗️ System Architecture
 
 ```
-Laser_System/
-├── calibration and test/           # Calibration and testing tools
-│   ├── calibration.py             # Main laser-camera calibration system
-│   ├── doublelasertest.py         # Dual laser coordination testing
-│   └── README.md                  # Detailed calibration documentation
-├── predictiveaim/                 # Advanced motion prediction system
-│   ├── predictiveaim.py          # Predictive targeting algorithms
-│   └── README.md                  # Algorithm documentation
-└── lasercar_system（old_version）/  # Legacy web interface system
-    ├── app.py                     # Flask web application
-    ├── esp32_robot_control.ino    # ESP32 firmware for hardware control
-    ├── static/                    # Web assets and JavaScript
-    │   ├── gamepad.js            # Gamepad control interface
-    │   └── robot.png             # UI graphics
-    └── templates/                 # HTML templates
-        ├── index.html            # Main control interface
-        └── dataset/              # Data collection interface
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│ AI Vision       │ │ Laser Control   │ │ Navigation      │
+│ (Jetson Nano)   │◄──►│ (ESP32 +        │◄──►│ (Raspberry Pi)  │
+│ - YOLOv11       │ │   Helios DAC)   │ │ - GPS/IMU       │
+│ - Prediction    │ │ - Dual Motor    │ │                 │
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌─────────────────────────────────────────────────────────┐
+│          MQTT Communication Hub                         │
+│        + FlySky Remote Control (WiFi)                   │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## 🔧 System Components
+## 📁 Project Structure
 
-### 1. **Calibration and Test** (`calibration and test/`)
+```
+lasergithub/
+├── Laser_System/                    # Laser control and targeting
+│   ├── calibration and test/        # System calibration tools
+│   │   ├── calibration.py           # Laser-camera calibration
+│   │   └── doublelasertest.py       # Dual laser testing
+│   ├── predictiveaim/               # 🆕 Predictive targeting (UPDATED)
+│   │   ├── predictiveaim.py         # Enhanced dual-motor tracking
+│   │   ├── 930test.py               # Latest version with remote control
+│   │   └── 930esp32.txt             # ESP32 firmware for FlySky integration
+│   └── lasercar_system（old_version）/  # Web interface & control
+│       ├── app.py                   # Flask web application
+│       ├── esp32_robot_control.ino  # ESP32 firmware (old version)
+│       ├── static/                  # Web assets
+│       └── templates/               # HTML templates
+├── Yolo/                            # AI vision system
+│   ├── code/                        # Training and data management
+│   │   ├── fine_tuning.py           # YOLOv11 model fine-tuning
+│   │   └── weed_lable_update_download.py  # Roboflow integration
+│   └── finetuned_trinning_result/   # Training results and metrics
+└── auto_navigation/                 # Navigation and positioning
+    ├── jetsonnano/                  # Jetson Nano deployment
+    └── resberry pi/                 # Raspberry Pi IMU/GPS
+```
 
-**Purpose**: Establishes precise mapping between camera coordinates and laser galvanometer positions.
+## ✨ Key Features
 
-- **`calibration.py`**:
-  - Region-based calibration system
-  - Real-time laser spot detection
-  - Coordinate transformation calculation
-  - ESP32 laser power control integration
-  - Subpixel accuracy laser positioning
+### AI-Powered Detection
+- 🤖 YOLOv11-based deep learning model
+- 🎯 >95% weed identification rate
+- ⚡ Real-time operation at 20+ FPS
+- 🧹 Area filtering to ignore large grass patches
 
-- **`doublelasertest.py`**:
-  - Dual laser system testing
-  - Independent motor control for two galvanometers
-  - Multiple transformation methods (KNN, weighted interpolation)
-  - Real-time accuracy validation
+### Precision Laser Control
+- 🎪 Sub-millimeter laser positioning
+- 🔄 Dual-motor galvanometer system
+- 🎨 Configurable laser patterns (zigzag, etc.)
+- 💪 Adjustable power control (0-255)
 
-### 2. **Predictive Aim** (`predictiveaim/`)
+### Autonomous Navigation
+- 🧭 GPS and IMU-based positioning
+- 🗺️ Real-time trajectory prediction
+- 🎢 Noise filtering for rough terrain
+- ⏱️ YOLO delay compensation
 
-**Purpose**: Advanced motion tracking and trajectory prediction for moving targets.
+### Multi-Interface Control
+- 🎮 FlySky remote control (4 modes)
+- 💻 Web interface
+- ⌨️ Keyboard controls
+- 🖱️ Mouse/slider for power adjustment
 
-- **`predictiveaim.py`**:
-  - Multi-stage noise filtering system
-  - YOLO detection delay compensation
-  - Real-time trajectory prediction
-  - Multi-object tracking capabilities
-  - Velocity consistency analysis
-  - Adaptive confidence calculation
+### Safety Features
+- 🛑 Hardware emergency stop
+- 🔒 Software interlocks
+- ⚠️ Motion detection shutdown
+- ⏲️ Timeout protection
+- 🚨 Multi-layer safety validation
 
-### 3. **Legacy Web Interface** (`lasercar_system（old_version）/`)
+## 🔧 Hardware Components
 
-**Purpose**: Web-based control interface and hardware integration (legacy system).
+| Component | Purpose |
+|-----------|---------|
+| **Jetson Nano** | AI inference and computer vision |
+| **Raspberry Pi 4** | IMU/GPS data collection, MQTT |
+| **ESP32** | Motor control, laser coordination, FlySky receiver |
+| **Helios Laser DAC** (x2) | High-precision dual laser control |
+| **BerryIMU** | 9-axis IMU sensor |
+| **USB Camera** | Real-time video capture |
+| **FlySky Remote** | Wireless control system |
+| **RoboClaw** | Motor controller |
 
-- **`app.py`**:
-  - Flask web application server
-  - Real-time camera streaming
-  - Manual laser control interface
-  - Safety monitoring and controls
-  - Data logging and analytics
+## 🚀 Quick Start
 
-- **`esp32_robot_control.ino`**:
-  - ESP32 microcontroller firmware
-  - Motor control protocols
-  - Wireless communication handling
-  - Hardware safety interlocks
-  - Robot movement coordination
+### 1. Installation
 
-- **`static/gamepad.js`**:
-  - Browser-based gamepad integration
-  - Real-time input processing
-  - Multi-button mapping system
-  - Analog stick control for precision
-
-## 🚀 Quick Start Guide
-
-### 1. System Calibration
 ```bash
-cd "calibration and test"
+# Clone repository
+git clone https://github.com/greatroboticslab/LaserWeedingRobotics.git
+cd LaserWeedingRobotics
+
+# Install dependencies
+pip install ultralytics opencv-python flask paho-mqtt numpy scipy keyboard
+
+# Install additional requirements
+pip install -r requirements.txt
+```
+
+### 2. ESP32 Setup (FlySky Integration)
+
+```bash
+# Upload ESP32 firmware
+# File: Laser_System/predictiveaim/930esp32.txt
+# 1. Open in Arduino IDE
+# 2. Install libraries: IBusBM, RoboClaw
+# 3. Configure WiFi credentials
+# 4. Upload to ESP32
+
+# Default IP: 192.168.1.104
+# Port: 10001
+```
+
+### 3. Calibration
+
+```bash
+# Calibrate both laser motors
+cd Laser_System/calibration\ and\ test/
 python calibration.py
-```
-- Follow on-screen instructions for region definition
-- Use WASD keys for laser positioning
-- Press 1-4 to set calibration region corners
-- Press 'G' for automatic grid calibration
 
-### 2. Predictive Targeting Test
+# Test dual laser system
+python doublelasertest.py
+```
+
+### 4. Run Main System
+
 ```bash
-cd predictiveaim
-python predictiveaim.py
+cd Laser_System/predictiveaim/
+python 930test.py
 ```
-- Loads YOLO model for weed detection
-- Activates real-time motion tracking
-- Demonstrates predictive aiming capabilities
 
-### 3. Web Interface (Legacy)
-```bash
-cd "lasercar_system（old_version）"
-python app.py
+## 🎮 FlySky Remote Control Modes
+
+| Switch | Mode | Description | Laser |
+|--------|------|-------------|-------|
+| **SwA** | Moving Target | Autonomous predictive targeting for moving weeds | Auto ON/OFF |
+| **SwB** | Auto Static | Automatic detection and elimination of stationary weeds | Auto ON |
+| **SwC** | Manual Control | Full joystick control of laser position and power | Manual |
+| **SwD** | Laser Toggle | Toggle laser ON/OFF (works in manual mode) | Toggle |
+
+### Manual Mode Controls
+- **Left Stick (CH3)**: Laser power (0-100%)
+- **Right Stick (CH1/CH2)**: Laser X/Y position
+- **Emergency**: SwC immediately stops all operations
+
+## ⌨️ Keyboard Controls
+
+### Main Controls
+- `T`: Toggle Auto Targeting
+- `L`: Toggle Laser (manual mode only)
+- `Y`: Toggle Laser Patterns
+- `ESC`: Exit
+
+### Timing Adjustments
+- `UP/DOWN`: Observation time (0.3-3.0s)
+- `LEFT/RIGHT`: Prediction duration (2.0-20.0s)
+- `PgUp/PgDn`: Prediction delay (0.0-5.0s)
+- `HOME/END`: YOLO delay compensation (0.5-2.0s)
+
+### Area Filtering
+- `1/2`: Max area threshold (5-40%)
+- `3/4`: Max aspect ratio (2.0-8.0)
+
+### Static Targeting
+- `5/6`: Aiming duration (0.5-3.0s)
+- `7/8`: Stationary timeout (2.0-10.0s)
+- `9/0`: Firing duration (5.0-25.0s)
+- `B`: Stop static targeting
+
+### Noise Filtering
+- `Q/A`: Filter strength (0.0-1.0)
+- `W/S`: Smoothing window (1-10)
+- `E/D`: Movement threshold (1.0-20.0)
+- `R/F`: Outlier threshold (10-200)
+
+### Other
+- `U/I`: Min execution confidence
+- `O/K`: Speed scaling factor
+- `V`: Toggle region display
+- `P`: Toggle prediction display
+- `X`: Toggle noise stats
+
+## 📊 Performance Metrics
+
+| Metric | Value |
+|--------|-------|
+| Detection Accuracy | >95% |
+| Targeting Precision | Sub-millimeter |
+| Processing Speed | 20+ FPS |
+| Response Time | <100ms (with remote) |
+| YOLO Latency | ~1s (auto-compensated) |
+| Update Rate | 40 Hz |
+
+## 🔬 Advanced Features
+
+### Area Filtering Algorithm
+- Filters detections >18% of frame (grass patches)
+- Filters extreme aspect ratios (grass edges)
+- Minimum detection size: 0.08% of frame
+- Prevents false positives on large areas
+
+### Noise Filtering Pipeline
+1. **Outlier Detection**: Rejects sudden jumps >50px
+2. **Moving Average**: Weighted smoothing (5-point window)
+3. **Velocity Filtering**: Consistency-based filtering
+4. **Direction Tracking**: Maintains trajectory consistency
+
+### Trajectory Prediction
+- **Fast Method**: Start-end position (0.8s observation)
+- **Average Method**: Full velocity analysis
+- **Delay Compensation**: Auto-measured YOLO latency
+- **Speed Scaling**: Adjustable prediction accuracy
+
+### Static Targeting Workflow
 ```
-- Access web interface at `http://localhost:5000`
-- Manual control and monitoring
-- Gamepad integration available
+Detection → Monitor (5s) → AIMING (1s, laser OFF) → FIRING (10s, laser ON) → Complete
+```
 
-## 🎮 Control Methods
+## 📡 Communication Protocols
 
-### **1. Keyboard Control**
-- **WASD**: Laser positioning
-- **1-4**: Set calibration corners
-- **Space**: Add calibration point
-- **L**: Toggle laser on/off
-- **ESC**: Emergency stop
+### ESP32 → Python (TCP)
+```
+DATA timestamp CH1:val CH2:val ... ST:steer TH:throttle ML:left MR:right MD:mode SW:switches
+```
 
-### **2. Gamepad Control**
-- **Left Stick**: Precise laser positioning
-- **D-Pad**: Discrete movement steps
-- **Triggers**: Laser power control
-- **Buttons**: Mode switching and safety controls
-
-### **3. Web Interface**
-- **Click-to-aim**: Mouse targeting
-- **Real-time monitoring**: Live camera feed
-- **Parameter adjustment**: Sliders and controls
-- **Status displays**: System health indicators
-
-## ⚙️ Hardware Integration
-
-### **Laser Control Hardware**
-- **Helios Laser DAC**: High-speed galvanometer control
-- **Dual Galvanometer System**: X-Y axis laser positioning
-- **ESP32 Controller**: Wireless hardware coordination
-- **Power Control Module**: Variable laser intensity
-
-### **Sensor Integration**
-- **USB Camera**: Real-time visual feedback
-- **IMU Sensors**: Stability and orientation tracking
-- **GPS Module**: Absolute positioning reference
-- **Safety Sensors**: Emergency stop mechanisms
-
-## 📊 System Capabilities
-
-### **Targeting System**
-- **Calibration-based positioning**: Camera-to-laser coordinate mapping
-- **Real-time operation**: Live camera feed processing
-- **Multi-object support**: Can track multiple targets simultaneously
-- **Configurable accuracy**: Depends on calibration quality and setup
-
-### **Calibration System**
-- **Flexible calibration**: Manual, grid, and automatic modes
-- **Multiple transformation methods**: Homography, KNN, weighted interpolation
-- **Working area definition**: User-defined region boundaries
-- **Validation feedback**: Real-time accuracy assessment
+### Python → ESP32 (Serial)
+```
+ON        # Turn laser on
+OFF       # Turn laser off
+POWER 128 # Set power (0-255)
+```
 
 ## 🛡️ Safety Features
 
-### **Hardware Safety**
-- **Emergency Stop**: Physical kill switch
-- **Power Limiting**: Maximum laser intensity controls
-- **Motion Detection**: Automatic shutdown on unexpected movement
-- **Interlock Systems**: Multiple safety validation layers
+1. **Hardware Emergency Stop**: SwC switch
+2. **Automatic Laser Shutoff**: When no target detected
+3. **Manual Mode Protection**: Laser OFF by default in manual
+4. **Motion Detection**: Stops on unexpected movement
+5. **Timeout Protection**: Auto-shutdown after inactivity
+6. **Multi-layer Validation**: Software interlocks
 
-### **Software Safety**
-- **Timeout Protection**: Automatic laser disable
-- **Boundary Checking**: Working area enforcement
-- **Error Handling**: Graceful failure recovery
-- **Logging System**: Complete operation audit trail
+## 📚 Research Applications
 
-## 🔬 Research Applications
+- Precision agriculture and sustainable farming
+- Computer vision for agricultural robotics
+- Real-time trajectory prediction algorithms
+- Multi-sensor fusion and calibration
+- Human-robot interaction via remote control
 
-### **Agricultural Robotics**
-- **Precision Weed Control**: Selective laser treatment
-- **Crop Health Monitoring**: Non-contact scanning
-- **Automated Field Mapping**: Systematic area coverage
+## 🤝 Contributing
 
-### **Computer Vision Research**
-- **Real-time Object Tracking**: Motion analysis algorithms
-- **Calibration Techniques**: Camera-laser coordination
-- **Predictive Modeling**: Trajectory forecasting
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Code style and standards
+- Testing procedures
+- Documentation requirements
+- Submission process
 
-### **Control Systems**
-- **Multi-actuator Coordination**: Dual motor control
-- **Feedback Control**: Closed-loop positioning
-- **Adaptive Algorithms**: Self-tuning parameters
+## 📄 License
 
-## 🔗 Dependencies
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
 
-### **Core Libraries**
-- **OpenCV**: Computer vision and image processing
-- **NumPy**: Numerical computations
-- **SciPy**: Scientific computing and optimization
-- **Flask**: Web application framework
-- **Ultralytics**: YOLOv11 object detection
+## 🙏 Acknowledgments
 
-### **Hardware Libraries**
-- **PySerial**: ESP32 communication
-- **ctypes**: Helios DAC interface
-- **threading**: Concurrent operation support
+- **Ultralytics**: YOLOv11 framework
+- **Roboflow**: Dataset management
+- **OpenCV**: Computer vision library
+- **FlySky**: Remote control hardware
 
-## 📚 Documentation
+## 📞 Contact
 
-- **[Calibration System](calibration%20and%20test/README.md)**: Detailed calibration procedures and algorithms
-- **[Predictive Aiming](predictiveaim/README.md)**: Motion tracking and prediction algorithms
-- **Hardware Setup**: ESP32 firmware and wiring diagrams (see source files)
-
-## 🔧 Troubleshooting
-
-### **Common Issues**
-1. **Laser not detected**: Check power settings and camera exposure
-2. **Poor calibration accuracy**: Increase calibration points density
-3. **High tracking noise**: Adjust filtering parameters
-4. **ESP32 connection failed**: Verify serial port and drivers
-
-### **Performance Optimization**
-- **Lighting Control**: Consistent illumination for best results
-- **Camera Settings**: Optimal exposure and focus adjustment
-- **Processing Power**: Dedicated GPU for YOLO inference recommended
+- **Issues**: [GitHub Issues](https://github.com/greatroboticslab/LaserWeedingRobotics/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/greatroboticslab/LaserWeedingRobotics/discussions)
 
 ---
 
-This laser system represents a comprehensive solution for precision agricultural robotics, combining advanced computer vision, predictive algorithms, and robust hardware control for autonomous weed management applications.
+## 🆕 Latest Updates (v2.0)
+
+### Major Improvements
+✅ FlySky remote control integration with 4 operation modes  
+✅ Dual-motor synchronized laser tracking  
+✅ Intelligent area filtering to prevent grass patch false positives  
+✅ ESP32 dual-core optimization for real-time performance  
+✅ Two-phase static targeting (aiming + firing)  
+✅ Enhanced noise filtering for rough terrain  
+✅ Automatic YOLO delay compensation  
+✅ Manual joystick control for laser positioning  
+
+### Bug Fixes
+🐛 Fixed large grass patch false detection  
+🐛 Improved trajectory prediction stability  
+🐛 Reduced laser control latency  
+
+### Coming Soon
+🔮 GPS-based autonomous navigation  
+🔮 Multi-robot coordination  
+🔮 Advanced pattern optimization  
+🔮 Machine learning for laser power optimization
