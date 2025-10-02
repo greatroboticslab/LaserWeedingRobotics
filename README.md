@@ -17,6 +17,16 @@ This project presents a comprehensive **Autonomous Laser Weed Control System** t
 - **📡 Real-time Communication**: MQTT-based data exchange and monitoring
 - **⚡ Edge Computing**: Optimized for Jetson Nano and Raspberry Pi deployment
 
+- ## 🆕 Latest Updates (v2.0 - October 2025)
+**Major enhancements to the predictive targeting system:**
+- 🎮 FlySky remote control integration with 4 operation modes
+- ⚡ Dual motor synchronized laser tracking  
+- 🧠 Intelligent area filtering (91% reduction in false positives)
+- 🎯 Two-phase static targeting system (AIMING → FIRING)
+- 📡 ESP32 dual-core optimization (<10ms system latency)
+
+See [Predictive Aim README](Laser_System/predictiveaim/) for detailed technical documentation.
+
 ## 🏗️ System Architecture
 
 ```
@@ -229,5 +239,6 @@ For questions, suggestions, or collaboration opportunities:
 - **Email**: your.email@institution.edu
 
 ---
+
 
 **⚠️ Safety Notice**: This system uses laser technology. Always follow proper safety protocols and local regulations when operating laser equipment. Ensure proper eye protection and safety barriers are in place during operation.
