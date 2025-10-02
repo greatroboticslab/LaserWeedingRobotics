@@ -24,8 +24,9 @@ This project presents a comprehensive **Autonomous Laser Weed Control System** t
 - 🧠 Intelligent area filtering (91% reduction in false positives)
 - 🎯 Two-phase static targeting system (AIMING → FIRING)
 - 📡 ESP32 dual-core optimization (<10ms system latency)
-
-See [Predictive Aim README](Laser_System/predictiveaim/) for detailed technical documentation.
+📖 **Detailed Documentation:**
+- [Laser System README](Laser_System/) - Complete system features and controls
+- [Predictive Aim README](Laser_System/predictiveaim/) - Advanced algorithms and technical details
 
 ## 🏗️ System Architecture
 
@@ -242,3 +243,4 @@ For questions, suggestions, or collaboration opportunities:
 
 
 **⚠️ Safety Notice**: This system uses laser technology. Always follow proper safety protocols and local regulations when operating laser equipment. Ensure proper eye protection and safety barriers are in place during operation.
+
