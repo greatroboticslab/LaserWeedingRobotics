@@ -266,12 +266,12 @@ class FlySkyRemoteControl:
                 # Clear stationary tracking to start fresh
                 self.parent.stationary_weeds.clear()
 
-                # Turn on laser for auto static mode
+                # Ensure laser is OFF when entering SwB mode (will turn on during FIRING phase)
                 if self.parent.esp32_connected:
-                    if not self.parent.laser_enabled:
-                        self.parent.laser_enabled = True
-                        self.parent.send_laser_command("ON", False)
-                        print("Laser turned ON for auto static mode")
+                    if self.parent.laser_enabled:
+                        self.parent.laser_enabled = False
+                        self.parent.send_laser_command("OFF", False)
+                        print("Laser initially OFF for auto static mode (will activate during firing phase)")
 
             else:
                 # Disable auto static detection mode
@@ -929,9 +929,11 @@ class StaticTargetingSystem:
 
     def stop_static_targeting(self):
         """Stop current static targeting execution"""
+        stopped_weed_id = None
         if self.active_static_execution:
+            stopped_weed_id = self.active_static_execution['weed_id']
             self.active_static_execution['is_running'] = False
-            print(f"[STATIC] Stopping targeting for Weed #{self.active_static_execution['weed_id']}")
+            print(f"[STATIC] Stopping targeting for Weed #{stopped_weed_id}")
 
         # Always turn off laser when stopping
         if self.parent.esp32_connected:
@@ -939,6 +941,14 @@ class StaticTargetingSystem:
                 self.parent.laser_enabled = False
                 self.parent.send_laser_command("OFF", False)
                 print("[STATIC] Laser turned OFF")
+
+        # Clear the targeted flag for the stopped weed
+        if stopped_weed_id is not None:
+            for weed in self.parent.detected_weeds:
+                if weed.get('weed_id') == stopped_weed_id:
+                    weed['targeted'] = False
+                    print(f"[STATIC] Weed #{stopped_weed_id} targeting stopped, cleared for re-targeting")
+                    break
 
     def _static_execution_thread(self):
         """Static targeting execution thread with AIMING and FIRING phases"""
@@ -1030,7 +1040,15 @@ class StaticTargetingSystem:
                     self.parent.send_laser_command("OFF", False)
                     print(f"[STATIC] Laser turned OFF (targeting complete for Weed #{weed_id})")
 
-            print(f"[STATIC] Execution thread ended for Weed #{weed_id}")
+            # Clear the targeted flag for this weed to allow re-detection if it appears again
+            for weed in self.parent.detected_weeds:
+                if weed.get('weed_id') == weed_id:
+                    weed['targeted'] = False
+                    print(f"[STATIC] Weed #{weed_id} marked as available for re-targeting")
+                    break
+
+            print(f"[STATIC] Execution thread ended for Weed #{weed_id})")
+            print(f"[STATIC] System ready to detect and target next stationary weed")
 
     def get_execution_status(self):
         """Get current static execution status"""
@@ -1136,9 +1154,11 @@ class DualMotorAutonomousTrajectoryFollower:
 
     def stop_current_execution(self):
         """Stop current trajectory execution"""
+        stopped_weed_id = None
         if self.active_execution:
+            stopped_weed_id = self.active_execution['weed_id']
             self.active_execution['is_running'] = False
-            print(f"Stopping trajectory execution for Weed #{self.active_execution['weed_id']}")
+            print(f"Stopping trajectory execution for Weed #{stopped_weed_id}")
 
         for thread in self.execution_threads:
             if thread and thread.is_alive():
@@ -1152,6 +1172,14 @@ class DualMotorAutonomousTrajectoryFollower:
                 self.parent.laser_enabled = False
                 self.parent.send_laser_command("OFF", False)
                 print("Laser automatically turned OFF (no target)")
+
+        # Clear the targeted flag for the stopped weed
+        if stopped_weed_id is not None:
+            for weed in self.parent.detected_weeds:
+                if weed.get('weed_id') == stopped_weed_id:
+                    weed['targeted'] = False
+                    print(f"[SWA] Weed #{stopped_weed_id} execution stopped, cleared for re-targeting")
+                    break
 
     def _trajectory_execution_thread_for_motor(self, motor_index):
         """Trajectory execution thread for a specific motor"""
@@ -1241,6 +1269,13 @@ class DualMotorAutonomousTrajectoryFollower:
                                 self.parent.laser_enabled = False
                                 self.parent.send_laser_command("OFF", False)
                                 print("Laser automatically turned OFF (tracking complete)")
+
+                        # Clear the targeted flag for this weed to allow system to move to next target
+                        for weed in self.parent.detected_weeds:
+                            if weed.get('weed_id') == weed_id:
+                                weed['targeted'] = False
+                                print(f"[SWA] Weed #{weed_id} tracking complete, ready for next target")
+                                break
 
             print(f"Trajectory execution thread ended for Motor {motor_index + 1}")
 
@@ -1863,15 +1898,23 @@ class EnhancedWeedTargeting:
         if observation_time < 0.5:
             return
 
-        # Check if moving
-        is_moving = (movement_info and movement_info['has_movement'] and movement_info['speed'] > 2.0)
+        # In SwB mode, vehicle is stopped, so ignore movement detection
+        # All weeds should be treated as stationary targets
+        # Check if moving (DISABLED IN SWB MODE - vehicle is stopped)
+        is_moving = False  # Force stationary detection in SwB mode
+
+        # Note: Movement detection is bypassed in SwB mode because:
+        # 1. Vehicle is stationary when SwB is active
+        # 2. Any detected "movement" is likely camera shake or detection noise
+        # 3. We want to target ALL weeds in view, regardless of apparent movement
 
         if is_moving:
+            # This branch will never execute in SwB mode (is_moving always False)
             if weed_id in self.stationary_weeds:
                 print(f"Weed #{weed_id} started moving ({movement_info['speed']:.1f}px/s), removed from monitoring")
                 del self.stationary_weeds[weed_id]
         else:
-            # Weed is stationary
+            # Weed is stationary (or we're in SwB mode where all weeds are treated as stationary)
             if weed_id not in self.stationary_weeds:
                 self.stationary_weeds[weed_id] = current_time
                 print(
@@ -1887,44 +1930,51 @@ class EnhancedWeedTargeting:
                             f"[AUTO-STATIC] Weed #{weed_id} stationary for {stationary_duration:.1f}s, {remaining:.1f}s remaining...")
 
                 if stationary_duration >= self.stationary_timeout:
-                    # Check if not already being targeted
-                    dynamic_status = self.autonomous_follower.get_execution_status()
+                    # Check if system is currently targeting any weed
                     static_status = self.static_targeting.get_execution_status()
 
-                    is_dynamic_targeting = (dynamic_status and dynamic_status['weed_id'] == weed_id)
-                    is_static_targeting = (static_status and static_status['weed_id'] == weed_id)
-                    is_current_target = (self.current_target and self.current_target['weed_id'] == weed_id)
+                    # If system is busy with another weed, keep this one in monitoring
+                    if static_status and static_status['weed_id'] != weed_id:
+                        # Another weed is being targeted, wait for it to finish
+                        return
 
-                    if not (is_dynamic_targeting or is_static_targeting or is_current_target or weed.get('targeted',
-                                                                                                         False)):
-                        # Ensure filtered position exists
-                        if 'filtered_x' not in weed or 'filtered_y' not in weed:
-                            print(f"[AUTO-STATIC] ERROR: Weed #{weed_id} missing filtered position!")
-                            del self.stationary_weeds[weed_id]
-                            return
+                    # Check if this specific weed is already being targeted
+                    if static_status and static_status['weed_id'] == weed_id:
+                        # This weed is already being targeted
+                        return
 
-                        # Start static targeting
-                        target_pos = [weed['filtered_x'], weed['filtered_y']]
-                        print(f"[AUTO-STATIC] ========================================")
-                        print(f"[AUTO-STATIC] Starting targeting for Weed #{weed_id}")
-                        print(f"[AUTO-STATIC] Position: ({target_pos[0]:.1f}, {target_pos[1]:.1f})")
-                        print(f"[AUTO-STATIC] Duration: {self.static_firing_duration:.1f}s")
-                        print(f"[AUTO-STATIC] ========================================")
-
-                        success = self.static_targeting.start_static_targeting(weed_id, target_pos)
-
-                        if success:
-                            weed['targeted'] = True
-                            self.static_targeting.stationary_timeout = self.stationary_timeout
-                            self.static_targeting.firing_duration = self.static_firing_duration
-                            print(f"[AUTO-STATIC] Successfully started targeting Weed #{weed_id}")
-                        else:
-                            print(f"[AUTO-STATIC] FAILED to start targeting Weed #{weed_id}")
-
+                    # Check if weed has been marked as targeted
+                    if weed.get('targeted', False):
+                        # Already targeted, remove from monitoring
                         del self.stationary_weeds[weed_id]
+                        return
+
+                    # Ensure filtered position exists
+                    if 'filtered_x' not in weed or 'filtered_y' not in weed:
+                        print(f"[AUTO-STATIC] ERROR: Weed #{weed_id} missing filtered position!")
+                        del self.stationary_weeds[weed_id]
+                        return
+
+                    # Start static targeting for this weed
+                    target_pos = [weed['filtered_x'], weed['filtered_y']]
+                    print(f"[AUTO-STATIC] ========================================")
+                    print(f"[AUTO-STATIC] Starting targeting for Weed #{weed_id}")
+                    print(f"[AUTO-STATIC] Position: ({target_pos[0]:.1f}, {target_pos[1]:.1f})")
+                    print(f"[AUTO-STATIC] Duration: {self.static_firing_duration:.1f}s")
+                    print(f"[AUTO-STATIC] ========================================")
+
+                    success = self.static_targeting.start_static_targeting(weed_id, target_pos)
+
+                    if success:
+                        weed['targeted'] = True
+                        self.static_targeting.stationary_timeout = self.stationary_timeout
+                        self.static_targeting.firing_duration = self.static_firing_duration
+                        print(f"[AUTO-STATIC] Successfully started targeting Weed #{weed_id}")
                     else:
-                        # Already being targeted, remove from monitoring
-                        del self.stationary_weeds[weed_id]
+                        print(f"[AUTO-STATIC] FAILED to start targeting Weed #{weed_id}")
+
+                    # Remove from monitoring list as it's now being handled
+                    del self.stationary_weeds[weed_id]
 
     def detection_thread(self):
         """Main detection and tracking thread with area filtering"""
